@@ -4,12 +4,25 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { type AgendaItem } from "@/lib/types/database";
-import { planificarClase, eliminarPlanificacion } from "./actions";
+import { planificarClase, eliminarPlanificacion, actualizarHorarioClase } from "./actions";
 import {
   CalendarDays, Sparkles, RefreshCw, X, Plus,
   ChevronLeft, ChevronRight, Rocket, Trash2, Clock, History,
   CalendarSync, Copy, Check, Crown
 } from "lucide-react";
+import { 
+  DndContext, 
+  DragOverlay, 
+  useSensor, 
+  useSensors, 
+  MouseSensor,
+  TouchSensor, 
+  type DragEndEvent,
+  useDraggable,
+  useDroppable,
+  type Modifier,
+} from "@dnd-kit/core";
+
 import type { ClaseCerrada } from "./page";
 
 interface AgendaClientProps {
@@ -53,6 +66,213 @@ function isSameDay(a: Date, b: Date): boolean {
 function formatDateKey(d: Date): string {
   return d.toISOString().split("T")[0];
 }
+
+// --- Modifiers ---
+const snapToGridModifier: Modifier = ({ transform }) => {
+  return {
+    ...transform,
+    y: Math.round(transform.y / 20) * 20, // 20px = 15 minutos (80px = 1h)
+  };
+};
+
+// --- Draggable & Droppable Components ---
+
+function ClaseCard({ 
+  item, 
+  style, 
+  isGhost, 
+  isDraggingActive, 
+  listeners, 
+  attributes, 
+  setNodeRef,
+  onClick,
+  heightDelta = 0
+}: any) {
+  const [h, m] = item.hora.split(":").map(Number);
+  const startMinutes = h * 60 + m;
+  const pxPerMinute = 80 / 60;
+  const top = (startMinutes - 8 * 60) * pxPerMinute;
+  const durationMinutes = (item.duracion_estimada || 1) * 60;
+  const height = Math.max(20, (durationMinutes * pxPerMinute) + heightDelta);
+
+  // Calcular hora de fin dinámica
+  const currentDurationMinutes = height / pxPerMinute;
+  const totalEndMinutes = startMinutes + currentDurationMinutes;
+  const displayEndH = Math.floor(totalEndMinutes / 60);
+  const displayEndM = Math.round(totalEndMinutes % 60);
+  const finalEndH = displayEndM >= 60 ? displayEndH + 1 : displayEndH;
+  const finalEndM = displayEndM >= 60 ? 0 : displayEndM;
+  const endHora = `${String(finalEndH).padStart(2, "0")}:${String(finalEndM).padStart(2, "0")}`;
+
+  return (
+    <div
+      ref={setNodeRef}
+      onClick={(e) => {
+        // Evitar que el clic se dispare si estamos redimensionando
+        if (heightDelta !== 0) return;
+        onClick?.();
+      }}
+      style={{
+        ...style,
+        top: top,
+        height: height,
+        position: "absolute",
+        zIndex: isDraggingActive || heightDelta !== 0 ? 50 : isGhost ? 5 : 10,
+        left: "4px",
+        right: "4px",
+        touchAction: "none",
+      }}
+      className={cn(
+        "group/item rounded-xl pl-2.5 pr-1 py-1.5 border shadow-sm transition-shadow w-full",
+        isGhost ? "opacity-30 grayscale pointer-events-none border-dashed" : "opacity-100",
+        (isDraggingActive || heightDelta !== 0) ? "shadow-2xl scale-[1.02] border-primary-300 ring-4 ring-primary-500/10 cursor-grabbing" : "border-primary-100",
+        "bg-white border-l-4 border-l-primary-500",
+        "hover:shadow-md hover:border-primary-200"
+      )}
+      {...listeners}
+      {...attributes}
+    >
+      <div className="flex flex-col h-full overflow-hidden relative">
+        <p className="text-[10px] font-bold text-primary-700 leading-none mb-1">
+           {item.hora.substring(0, 5)} - {endHora}
+        </p>
+        <p className="text-xs font-black text-surface-900 leading-tight truncate">
+          {item.alumnos?.nombre} {item.alumnos?.apellido?.charAt(0)}.
+        </p>
+        {height > 35 && (
+          <p className="text-[9px] text-surface-500 truncate mt-0.5 leading-none">
+            {item.tema_previsto || "Sin tema"}
+          </p>
+        )}
+        
+        {/* Resize Handle */}
+        {!isGhost && !isDraggingActive && (
+          <ResizeHandle id={item.id} item={item} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResizeHandle({ id, item }: { id: string; item: any }) {
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: `resize-${id}`,
+    data: { type: 'resize', item },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className="absolute -bottom-1.5 -left-2.5 -right-1 h-4 cursor-ns-resize flex items-center justify-center group-hover:bg-primary-500/5 transition-colors z-[60]"
+    >
+      <div className="w-8 h-1 rounded-full bg-surface-200 group-hover/item:bg-primary-300 transition-colors" />
+    </div>
+  );
+}
+
+function DraggableClase({ item, onClick, heightDelta = 0 }: { item: AgendaItem; onClick: () => void; heightDelta?: number }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: item.id,
+    data: item,
+    disabled: heightDelta !== 0 // Desactivar drag si estamos redimensionando
+  });
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+  } : undefined;
+
+  return (
+    <>
+      {isDragging && (
+        <ClaseCard 
+          item={item} 
+          isGhost={true} 
+        />
+      )}
+      <ClaseCard 
+        item={item} 
+        style={style} 
+        isDraggingActive={isDragging} 
+        listeners={listeners} 
+        attributes={attributes} 
+        setNodeRef={setNodeRef} 
+        onClick={onClick}
+        heightDelta={heightDelta}
+      />
+    </>
+  );
+}
+
+
+function DroppableColumna({ date, isToday, isPast, children }: { 
+  date: Date; 
+  isToday: boolean;
+  isPast: boolean;
+  children: React.ReactNode 
+}) {
+  const dateKey = formatDateKey(date);
+  const { setNodeRef, isOver } = useDroppable({
+    id: dateKey,
+    data: { date: dateKey },
+  });
+
+  // Now indicator line
+  const [nowTop, setNowTop] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isToday) return;
+    const updateNow = () => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      if (h < 8 || h >= 23) {
+        setNowTop(null);
+        return;
+      }
+      const pxPerMinute = 80 / 60;
+      setNowTop((h * 60 + m - 8 * 60) * pxPerMinute);
+    };
+    updateNow();
+    const interval = setInterval(updateNow, 60000);
+    return () => clearInterval(interval);
+  }, [isToday]);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "relative flex flex-col min-h-[1120px] transition-colors border-r border-surface-100 last:border-r-0 group/col",
+        isToday ? "bg-primary-50/10" : isPast ? "bg-surface-50/20" : "bg-white",
+        isOver && "bg-primary-50/50"
+      )}
+    >
+      {/* Grid lines */}
+      {Array.from({ length: 15 }).map((_, i) => (
+        <div 
+          key={i} 
+          className="absolute left-0 right-0 border-t border-surface-100/30 h-0 pointer-events-none" 
+          style={{ top: i * 80 }}
+        />
+      ))}
+
+      {/* Now indicator */}
+      {isToday && nowTop !== null && (
+        <div className="absolute left-0 right-0 z-20 pointer-events-none flex items-center" style={{ top: nowTop }}>
+          <div className="w-2 h-2 rounded-full bg-danger-500 -ml-1" />
+          <div className="flex-1 h-px bg-danger-500" />
+        </div>
+      )}
+
+      <div className="relative flex-1">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+
 
 // --- Modal Component ---
 function PlanificarModal({
@@ -304,6 +524,138 @@ function PlanificarModal({
   );
 }
 
+// --- Edit Modal ---
+function EditarClaseModal({
+  item, onClose, alumnos,
+}: {
+  item: AgendaItem;
+  onClose: () => void;
+  alumnos: any[];
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    alumno_id: item.alumno_id,
+    hora: item.hora.substring(0, 5),
+    tema_previsto: item.tema_previsto || "",
+    tarifa_esperada: item.tarifa_esperada || 0,
+  });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const { actualizarClase } = await import("./actions");
+      await actualizarClase(item.id, formData);
+      onClose();
+    } catch (error: any) {
+      setErrorMsg("Error: " + (error.message || "No se pudo actualizar"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("¿Estás segura de que querés eliminar esta clase?")) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const { eliminarPlanificacion } = await import("./actions");
+      await eliminarPlanificacion(item.id);
+      onClose();
+    } catch (error: any) {
+      setErrorMsg("Error: " + (error.message || "No se pudo eliminar"));
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 p-4 backdrop-blur-sm transition-opacity">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-scale-up">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-surface-900">Editar Clase</h2>
+          <button onClick={onClose} className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {errorMsg && <div className="mb-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-600 border border-danger-100">{errorMsg}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-surface-700">Alumno</label>
+            <select
+              required
+              value={formData.alumno_id}
+              onChange={(e) => setFormData({ ...formData, alumno_id: e.target.value })}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+            >
+              <option value="" disabled>Seleccionar alumno...</option>
+              {alumnos.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-700 flex items-center gap-1"><Clock size={12}/> Hora</label>
+              <input
+                type="time" required
+                value={formData.hora}
+                onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-700">Monto a Cobrar</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-surface-400 text-sm">$</span>
+                <input
+                  type="number" required
+                  value={formData.tarifa_esperada}
+                  onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-7 pr-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-surface-700">Temas de la clase</label>
+            <input
+              type="text" placeholder="Ej: Multiplicación y división"
+              value={formData.tema_previsto}
+              onChange={(e) => setFormData({ ...formData, tema_previsto: e.target.value })}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+            />
+          </div>
+
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-danger-200 bg-danger-50 text-danger-600 hover:bg-danger-100 transition-colors disabled:opacity-40"
+              title="Eliminar clase"
+            >
+              <Trash2 size={18} />
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-bold text-white shadow-md hover:bg-primary-700 transition-all active:scale-95 disabled:opacity-40"
+            >
+              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // --- Main Component ---
 export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
   const [mounted, setMounted] = useState(false);
@@ -315,6 +667,94 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   const [calendarCopied, setCalendarCopied] = useState(false);
   const [feriados, setFeriados] = useState<Record<string, Feriado>>({});
   const [calendarUrl, setCalendarUrl] = useState<string>("");
+  const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const [resizingDeltaY, setResizingDeltaY] = useState(0);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
+    })
+  );
+
+  const [activeItem, setActiveItem] = useState<AgendaItem | null>(null);
+
+  const handleDragStart = (event: any) => {
+    const { active } = event;
+    if (active.id.toString().startsWith("resize-")) {
+      setResizingId(active.data.current.item.id);
+      return;
+    }
+    setActiveItem(active.data.current);
+  };
+
+  const handleDragMove = (event: any) => {
+    if (resizingId) {
+      const { delta } = event;
+      setResizingDeltaY(delta.y);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over, delta } = event;
+
+    if (resizingId) {
+      const item = (active.data.current as any).item;
+      if (item) {
+        // 20px = 15 min. Snapping manual aquí.
+        const snappedDeltaY = Math.round(resizingDeltaY / 20) * 20;
+        const extraMinutes = (snappedDeltaY * 60) / 80;
+        const currentDurationMinutes = (item.duracion_estimada || 1) * 60;
+        const newDurationHours = Math.max(0.25, (currentDurationMinutes + extraMinutes) / 60);
+
+        try {
+          const { actualizarDuracionClase } = await import("./actions");
+          await actualizarDuracionClase(item.id, newDurationHours);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setResizingId(null);
+      setResizingDeltaY(0);
+      return;
+    }
+
+    setActiveItem(null);
+
+    if (over) {
+      const item = active.data.current as AgendaItem;
+      const newDate = over.id as string;
+      
+      const [h, m] = item.hora.split(":").map(Number);
+      const originalMinutes = h * 60 + m;
+      const pxPerMinute = 80 / 60;
+      const deltaMinutes = Math.round(delta.y / pxPerMinute / 15) * 15;
+      
+      let newMinutes = originalMinutes + deltaMinutes;
+      newMinutes = Math.max(8 * 60, Math.min(22 * 60, newMinutes));
+      
+      const newH = Math.floor(newMinutes / 60);
+      const newM = newMinutes % 60;
+      const newHora = `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+
+      if (newDate === item.fecha && newHora === item.hora) return;
+
+      try {
+        const { actualizarHorarioClase } = await import("./actions");
+        await actualizarHorarioClase(item.id, newDate, newHora);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
 
   useEffect(() => {
     if (calendarToken) {
@@ -531,106 +971,96 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
       )}
 
       {/* Weekly calendar grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
-        {weekDays.map((date, i) => {
-          const key = formatDateKey(date);
-          const items = itemsByDate[key] || [];
-          const isToday = isSameDay(date, today);
-          const isPast = date < today && !isToday;
-
-          return (
-            <div
-              key={key}
-              className={cn(
-                "group relative flex flex-col rounded-2xl border bg-white p-3 min-h-[140px] transition-all duration-200",
-                isToday
-                  ? "border-primary-300 bg-primary-50/30 shadow-md ring-1 ring-primary-200"
-                  : isPast
-                    ? "border-surface-100 bg-surface-50/50 opacity-60"
-                    : "border-surface-200 hover:shadow-sm"
-              )}
-            >
-              {/* Day header */}
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <span className={cn(
-                    "text-[10px] font-bold uppercase tracking-widest",
-                    isToday ? "text-primary-600" : "text-surface-400"
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        modifiers={[snapToGridModifier]}
+      >
+        <div className="rounded-3xl border border-surface-200 bg-white shadow-xl overflow-hidden">
+          <div className="flex border-b border-surface-100 bg-surface-50/50">
+            {/* Hour axis header spacer */}
+            <div className="w-16 border-r border-surface-100" />
+            <div className="flex-1 grid grid-cols-7">
+              {weekDays.map((date, i) => {
+                const isToday = isSameDay(date, today);
+                return (
+                  <div key={i} className={cn(
+                    "px-2 py-4 text-center border-r border-surface-100 last:border-r-0",
+                    isToday && "bg-primary-50/50"
                   )}>
-                    {DIAS[i]}
-                  </span>
-                  <p className={cn(
-                    "text-lg font-black leading-none",
-                    isToday ? "text-primary-700" : "text-surface-900"
-                  )}>
-                    {date.getDate()}
-                  </p>
-                  {feriados[key] && (
-                    <span className="mt-1 block text-[8px] font-bold text-amber-600 leading-tight uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
-                      🇦🇷 {feriados[key].motivo}
-                    </span>
-                  )}
-                </div>
-                {!isPast && (
-                  <button
-                    onClick={() => openModalForDate(date)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-surface-300 opacity-0 group-hover:opacity-100 hover:bg-primary-50 hover:text-primary-600 transition-all"
-                    title={`Planificar para ${DIAS_FULL[i]}`}
-                  >
-                    <Plus size={16} strokeWidth={2.5} />
-                  </button>
-                )}
-              </div>
-
-              {/* Classes for this day */}
-              <div className="flex flex-col gap-1.5 flex-1">
-                {items.length === 0 && (
-                  <p className="text-[10px] text-surface-300 italic mt-auto">Sin clases</p>
-                )}
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "group/item relative rounded-xl pl-2.5 pr-10 py-2 transition-all cursor-default",
-                      "bg-gradient-to-r from-primary-50 to-white border border-primary-100",
-                      "hover:shadow-sm hover:border-primary-200"
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Clock size={10} className="text-surface-400 shrink-0" />
-                      <span className="text-[10px] font-bold text-surface-700">{item.hora.substring(0, 5)}</span>
-                    </div>
-                    <p className="text-xs font-bold text-surface-900 leading-tight truncate">
-                      {item.alumnos?.nombre} {item.alumnos?.apellido?.charAt(0)}.
+                    <p className={cn(
+                      "text-[10px] font-bold uppercase tracking-widest mb-1",
+                      isToday ? "text-primary-600" : "text-surface-400"
+                    )}>
+                      {DIAS[i]}
                     </p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[9px] text-surface-500 truncate">{item.tema_previsto || "Sin tema especificado"}</span>
-                    </div>
-
-                    {/* Hover actions (always visible on mobile) */}
-                    <div className="absolute top-1 right-1 flex lg:hidden lg:group-hover/item:flex items-center gap-0.5">
-                      <Link
-                        href={`/clases/nueva?alumnoId=${item.alumno_id}&tema=${encodeURIComponent(item.tema_previsto || "")}&agendaId=${item.id}`}
-                        className="rounded-md bg-primary-600 p-1 text-white hover:bg-primary-700 transition-colors"
-                        title="Iniciar clase"
-                      >
-                        <Rocket size={10} />
-                      </Link>
-                      <button
-                        onClick={() => handleEliminar(item.id)}
-                        className="rounded-md bg-surface-100 p-1 text-surface-400 hover:bg-danger-50 hover:text-danger-500 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={10} />
-                      </button>
-                    </div>
+                    <p className={cn(
+                      "text-xl font-black",
+                      isToday ? "text-primary-700" : "text-surface-900"
+                    )}>
+                      {date.getDate()}
+                    </p>
+                    {feriados[formatDateKey(date)] && (
+                      <span className="mt-1 inline-block text-[8px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 uppercase truncate max-w-full">
+                        {feriados[formatDateKey(date)].motivo}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+          </div>
+
+          <div className="flex relative overflow-y-auto max-h-[700px]">
+            {/* Hour Axis */}
+            <div className="w-16 flex-none bg-surface-50/30 border-r border-surface-100 relative">
+              {Array.from({ length: 15 }).map((_, i) => (
+                <div key={i} className="h-20 border-b border-surface-100/50 relative">
+                  <span className="absolute -top-2.5 right-2 text-[10px] font-bold text-surface-400">
+                    {String(i + 8).padStart(2, "0")}:00
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Columns Grid */}
+            <div className="flex-1 grid grid-cols-7 min-w-[800px]">
+              {weekDays.map((date) => {
+                const key = formatDateKey(date);
+                const items = itemsByDate[key] || [];
+                const isToday = isSameDay(date, today);
+                const isPast = date < today && !isToday;
+
+                return (
+                  <DroppableColumna 
+                    key={key} 
+                    date={date} 
+                    isToday={isToday} 
+                    isPast={isPast}
+                  >
+                    {items.map((item) => (
+                      <DraggableClase key={item.id} item={item} onClick={() => setEditingItem(item)} />
+                    ))}
+                    
+                    {/* Ghost button to add class */}
+                    {!isPast && (
+                      <button
+                        onClick={() => openModalForDate(date)}
+                        className="absolute inset-0 opacity-0 group-hover/col:opacity-100 flex items-center justify-center hover:bg-primary-50/50 transition-all z-0"
+                        title="Agendar en este día"
+                      >
+                        <Plus className="text-primary-600/20" size={48} />
+                      </button>
+                    )}
+                  </DroppableColumna>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </DndContext>
 
       {/* Cerradas Recientemente — Collapsible */}
       <div className="rounded-2xl border border-surface-200 bg-white overflow-hidden">
@@ -680,15 +1110,25 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
         )}
       </div>
 
-      {/* Modal */}
-      <PlanificarModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        alumnos={alumnos}
-        tarifaActual={tarifaActual}
-        prefillDate={prefillDate}
-        feriados={feriados}
-      />
+      {/* Modals */}
+      {modalOpen && (
+        <PlanificarModal
+          open={modalOpen}
+          onClose={() => { setModalOpen(false); setPrefillDate(undefined); }}
+          alumnos={alumnos}
+          tarifaActual={tarifaActual}
+          prefillDate={prefillDate}
+          feriados={feriados}
+        />
+      )}
+
+      {editingItem && (
+        <EditarClaseModal
+          item={editingItem}
+          alumnos={alumnos}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }

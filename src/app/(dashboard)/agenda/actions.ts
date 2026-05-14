@@ -68,3 +68,49 @@ export async function completarPlanificacion(id: string) {
 
   revalidatePath("/agenda");
 }
+
+export async function actualizarHorarioClase(id: string, fecha: string, hora: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("agenda")
+    .update({ fecha, hora })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function actualizarClase(id: string, data: {
+  hora: string;
+  alumno_id: string;
+  tarifa_esperada: number;
+  tema_previsto: string;
+}) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("agenda")
+    .update({ 
+      hora: data.hora,
+      alumno_id: data.alumno_id,
+      tarifa_esperada: data.tarifa_esperada,
+      tema_previsto: data.tema_previsto
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function actualizarDuracionClase(id: string, duracion_estimada: number) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("agenda")
+    .update({ duracion_estimada })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}

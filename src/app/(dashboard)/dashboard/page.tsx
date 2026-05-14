@@ -6,6 +6,7 @@ import { type Materia } from "@/lib/types/database";
 import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
 import SaludNegocio from "@/components/dashboard/SaludNegocio";
 import TutorialPrimerosPasos from "@/components/dashboard/TutorialPrimerosPasos";
+import ClaseEnVivoWidget from "@/components/dashboard/ClaseEnVivoWidget";
 import type { ResumenFinancieroMes } from "@/lib/types/database";
 import { 
   GraduationCap, 
@@ -71,15 +72,15 @@ export default async function DashboardPage() {
     supabase
       .from("agenda")
       .select(`
-        id, fecha, hora, tema_previsto, materia, alumno_id,
+        id, fecha, hora, tema_previsto, materia, alumno_id, duracion_estimada,
         alumnos!inner(id, nombre, apellido)
       `)
       .eq("maestra_id", user.id)
       .eq("estado", "pendiente")
-      .gte("fecha", new Date().toISOString().split("T")[0])
+      .gte("fecha", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0])
       .order("fecha", { ascending: true })
       .order("hora", { ascending: true })
-      .limit(5),
+      .limit(10),
 
     supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
     
@@ -113,6 +114,13 @@ export default async function DashboardPage() {
     }
   }
 
+  const proximasFiltradas = proximasClases?.filter(c => {
+    const classDate = new Date(c.fecha + "T00:00:00");
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    return classDate >= today;
+  }).slice(0, 5) || [];
+
   return (
     <div className="animate-fade-in-up space-y-8 pb-12">
       <div>
@@ -125,6 +133,8 @@ export default async function DashboardPage() {
       </div>
       
       {totalAlumnos === 0 && <TutorialPrimerosPasos />}
+
+      <ClaseEnVivoWidget proximasClases={proximasClases || []} />
 
       {/* Stats cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -170,7 +180,7 @@ export default async function DashboardPage() {
               </h2>
             </div>
             
-            {!proximasClases || proximasClases.length === 0 ? (
+            {proximasFiltradas.length === 0 ? (
               <div className="p-12 text-center">
                 <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface-100">
                   <Calendar className="text-surface-400" size={20} />
@@ -182,7 +192,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="divide-y divide-surface-100">
-                {proximasClases.map((clase: any) => (
+                {proximasFiltradas.map((clase: any) => (
                   <div 
                     key={clase.id} 
                     className="p-6 transition-colors hover:bg-surface-50/50"
