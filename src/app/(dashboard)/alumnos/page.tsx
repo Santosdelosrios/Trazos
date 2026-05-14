@@ -1,0 +1,245 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createAlumno, deleteAlumno } from "./actions";
+import { UserPlus, Trash2, GraduationCap, Plus, Crown } from "lucide-react";
+import { getPlan, PLAN_LIMITS, type Plan } from "@/lib/plan";
+
+export const metadata = {
+  title: "Mis Alumnos | Trazos",
+};
+
+export default async function AlumnosPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Fetch alumnos and plan in parallel
+  const [{ data: alumnosRaw, error }, plan] = await Promise.all([
+    supabase
+      .from("alumnos")
+      .select("*")
+      .eq("maestra_id", user.id)
+      .order("created_at", { ascending: false }),
+    getPlan(supabase, user.id),
+  ]);
+
+  if (error) {
+    console.error("Error fetching alumnos:", error);
+  }
+
+  const totalAlumnos = alumnosRaw?.length || 0;
+  const maxAlumnos = PLAN_LIMITS[plan].maxAlumnos;
+  const atLimit = plan === "free" && totalAlumnos >= maxAlumnos;
+
+  // Fetch ALL balances in a single batch call (avoids N+1 queries)
+  let saldosMap: Record<string, number> = {};
+  
+  if (alumnosRaw && alumnosRaw.length > 0) {
+    const alumnoIds = alumnosRaw.map(a => a.id);
+    
+    // Try batch RPC first, fall back to parallel individual calls
+    const saldoPromises = alumnoIds.map(id =>
+      supabase.rpc("calcular_saldo_alumno", {
+        p_alumno_id: id,
+        p_maestra_id: user.id,
+      }).then(({ data }) => ({ id, saldo: data?.[0]?.saldo_pendiente || 0 }))
+    );
+    
+    const saldoResults = await Promise.all(saldoPromises);
+    saldoResults.forEach(({ id, saldo }) => {
+      saldosMap[id] = saldo;
+    });
+  }
+
+  const alumnos = (alumnosRaw || []).map(alumno => ({
+    ...alumno,
+    saldo_pendiente: saldosMap[alumno.id] || 0,
+  }));
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-8 animate-fade-in-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-surface-900">Mis Alumnos</h1>
+          <p className="text-surface-600">Administrá tu lista de estudiantes.</p>
+        </div>
+        {plan === "free" && (
+          <div className="flex items-center gap-2 rounded-xl bg-surface-100 px-4 py-2 text-sm font-bold text-surface-700 border border-surface-200">
+            <GraduationCap size={16} />
+            <span>{totalAlumnos}/{maxAlumnos}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-3">
+        {/* Formulario para nuevo alumno */}
+        <div className="md:col-span-1">
+          <div className="rounded-2xl bg-white p-6 shadow-sm border border-surface-200">
+            <h2 className="text-lg font-semibold text-surface-900 mb-4">
+              Agregar Alumno
+            </h2>
+
+            {atLimit && (
+              <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-bold text-amber-800">
+                  <Crown size={16} className="text-amber-500" />
+                  Límite alcanzado
+                </div>
+                <p className="text-xs text-amber-700">
+                  Tenés {totalAlumnos} de {maxAlumnos} alumnos en el plan gratuito. Pasá a Premium para agregar sin límite.
+                </p>
+              </div>
+            )}
+            <form action={createAlumno} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-1">
+                    Nombre
+                  </label>
+                  <input
+                    name="nombre"
+                    type="text"
+                    required
+                    placeholder="Ej: Juan"
+                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 mb-1">
+                    Apellido
+                  </label>
+                  <input
+                    name="apellido"
+                    type="text"
+                    required
+                    placeholder="Ej: Pérez"
+                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Grado escolar
+                </label>
+                <select
+                  name="grado"
+                  required
+                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                >
+                  <option value="1">1° grado</option>
+                  <option value="2">2° grado</option>
+                  <option value="3">3° grado</option>
+                  <option value="4">4° grado</option>
+                  <option value="5">5° grado</option>
+                  <option value="6">6° grado</option>
+                  <option value="7">7° grado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Notas (Opcional)
+                </label>
+                <textarea
+                  name="notas"
+                  rows={2}
+                  placeholder="Dificultades, nivel, colegio..."
+                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={atLimit}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UserPlus size={16} /> {atLimit ? "Límite alcanzado" : "Guardar alumno"}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Lista de alumnos */}
+        <div className="md:col-span-2">
+          <div className="rounded-2xl bg-white shadow-sm border border-surface-200 overflow-hidden">
+            {alumnos && alumnos.length > 0 ? (
+              <ul className="divide-y divide-surface-100">
+                {alumnos.map((alumno) => (
+                  <li key={alumno.id} className="group relative hover:bg-surface-50 transition-colors">
+                    <Link href={`/alumnos/${alumno.id}`} className="block p-4 sm:p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 text-lg font-bold text-indigo-700">
+                            {alumno.nombre.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="text-base font-semibold text-surface-900 group-hover:text-primary-600 transition-colors">
+                              {alumno.nombre} {alumno.apellido}
+                            </h3>
+                            <div className="flex items-center space-x-2 text-sm text-surface-500">
+                              <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
+                                {alumno.grado}° Grado
+                              </span>
+                              {alumno.saldo_pendiente > 0 ? (
+                                <span className="inline-flex items-center rounded-md bg-danger-50 px-2 py-1 text-xs font-bold text-danger-600 border border-danger-200">
+                                  Deuda: ${alumno.saldo_pendiente}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-md bg-success-50 px-2 py-1 text-xs font-bold text-success-600 border border-success-200">
+                                  Al día
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {alumno.notas && (
+                        <p className="mt-3 text-sm text-surface-600 pl-16 line-clamp-2">
+                          {alumno.notas}
+                        </p>
+                      )}
+                    </Link>
+                    
+                    {/* Botón de eliminar (posicionado absoluto para no interferir con el Link) */}
+                    <form action={async () => {
+                      "use server";
+                      await deleteAlumno(alumno.id);
+                    }} className="absolute top-4 right-4 sm:top-6 sm:right-6">
+                      <button
+                        type="submit"
+                        className="text-surface-400 hover:text-danger-500 transition-colors p-2 rounded-lg hover:bg-danger-50 opacity-0 group-hover:opacity-100"
+                        title="Eliminar alumno"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-12 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-100 text-surface-400">
+                  <GraduationCap size={32} />
+                </div>
+                <h3 className="text-lg font-medium text-surface-900">
+                  Todavía no hay alumnos
+                </h3>
+                <p className="mt-1 text-sm text-surface-500">
+                  Agregá a tu primer estudiante usando el formulario.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
