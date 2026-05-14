@@ -102,9 +102,9 @@ export default async function AgendaPage() {
   }));
 
   return (
-    <AgendaClient 
-      initialAgenda={(agenda as AgendaItem[]) || []} 
-      alumnos={alumnos || []} 
+    <AgendaClient
+      initialAgenda={(agenda as AgendaItem[]) || []}
+      alumnos={alumnos || []}
       tarifaActual={tarifaData?.valor_hora || null}
       clasesCerradas={clasesCerradas}
       plan={(maestraData?.plan as "free" | "premium") || "free"}

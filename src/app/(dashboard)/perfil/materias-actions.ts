@@ -10,10 +10,6 @@ export async function addCustomMateria(nombre: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
-  const plan = await getPlan(supabase, user.id);
-  if (plan !== "premium") {
-    throw new Error("Las materias personalizadas son una función Premium.");
-  }
 
   const trimmed = nombre.trim();
   if (trimmed.length < 2) {
@@ -55,10 +51,6 @@ export async function toggleBaseMateria(materiaValue: string, hide: boolean) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
-  const plan = await getPlan(supabase, user.id);
-  if (plan !== "premium") {
-    throw new Error("Gestionar materias es una función Premium.");
-  }
 
   // Get current hidden list
   const { data } = await supabase

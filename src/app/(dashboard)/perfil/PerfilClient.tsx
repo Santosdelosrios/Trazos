@@ -276,8 +276,8 @@ export default function PerfilClient({
               {[
                 { icon: Users, label: "Alumnos ilimitados" },
                 { icon: CalendarSync, label: "Sincronización con Calendar" },
-                { icon: Palette, label: "Materias personalizadas" },
                 { icon: FileText, label: "Reportes PDF con IA" },
+                { icon: Sparkles, label: "Asistente Tiza" },
               ].map((f) => (
                 <div key={f.label} className="flex items-center gap-2 rounded-xl bg-success-50 border border-success-100 px-3 py-2.5">
                   <CircleCheck size={14} className="text-success-600 flex-shrink-0" />
@@ -326,12 +326,12 @@ export default function PerfilClient({
                   style={{ width: `${Math.min((profile.totalAlumnos / 10) * 100, 100)}%` }}
                 />
               </div>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-sm text-surface-700">Materias personalizadas</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-surface-700">Sync Google Calendar</span>
                 <X size={14} className="text-surface-400" />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-surface-700">Sync Google Calendar</span>
+                <span className="text-sm text-surface-700">Asistente Virtual Tiza</span>
                 <X size={14} className="text-surface-400" />
               </div>
               <div className="flex items-center justify-between">
@@ -361,7 +361,7 @@ export default function PerfilClient({
                   {[
                     { icon: Users, text: "Alumnos ilimitados" },
                     { icon: CalendarSync, text: "Sincronizá tu agenda con Google Calendar" },
-                    { icon: Palette, text: "Creá y personalizá tus materias" },
+                    { icon: Sparkles, text: "Asistente Virtual Tiza" },
                     { icon: FileText, text: "Reportes mensuales PDF con IA para padres" },
                   ].map((f) => (
                     <div key={f.text} className="flex items-center gap-2.5">

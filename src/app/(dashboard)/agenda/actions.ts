@@ -26,7 +26,7 @@ export async function planificarClase(data: {
   for (let i = 0; i < cantidadSemanas; i++) {
     const fechaClase = new Date(data.fecha + "T12:00:00");
     fechaClase.setDate(fechaClase.getDate() + (i * 7));
-    
+
     recordsToInsert.push({
       maestra_id: user.id,
       alumno_id: data.alumno_id,
@@ -90,7 +90,7 @@ export async function actualizarClase(id: string, data: {
   const supabase = await createClient();
   const { error } = await supabase
     .from("agenda")
-    .update({ 
+    .update({
       hora: data.hora,
       alumno_id: data.alumno_id,
       tarifa_esperada: data.tarifa_esperada,

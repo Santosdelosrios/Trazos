@@ -92,8 +92,8 @@ export default async function AlumnosPage() {
                   <Crown size={16} className="text-amber-500" />
                   Límite alcanzado
                 </div>
-                <p className="text-xs text-amber-700">
-                  Tenés {totalAlumnos} de {maxAlumnos} alumnos en el plan gratuito. Pasá a Premium para agregar sin límite.
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Tenés {totalAlumnos} de {maxAlumnos} alumnos en el plan gratuito. Pasá a Premium para agregar <b>sin límite</b> y hablar con <b>Tiza</b>, tu asistente virtual.
                 </p>
               </div>
             )}

@@ -54,21 +54,6 @@ export default function MateriasManager({
     });
   };
 
-  if (!isPremium) {
-    return (
-      <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Crown size={20} className="text-amber-500 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-bold text-amber-800">Materias Personalizadas</p>
-            <p className="text-xs text-amber-600">
-              Con Premium podés agregar tus propias materias y ocultar las que no uses.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-2xl bg-white border border-surface-200 shadow-sm overflow-hidden">

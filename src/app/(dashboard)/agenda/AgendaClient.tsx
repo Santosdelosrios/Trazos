@@ -10,13 +10,13 @@ import {
   ChevronLeft, ChevronRight, Rocket, Trash2, Clock, History,
   CalendarSync, Copy, Check, Crown
 } from "lucide-react";
-import { 
-  DndContext, 
-  DragOverlay, 
-  useSensor, 
-  useSensors, 
+import {
+  DndContext,
+  DragOverlay,
+  useSensor,
+  useSensors,
   MouseSensor,
-  TouchSensor, 
+  TouchSensor,
   type DragEndEvent,
   useDraggable,
   useDroppable,
@@ -77,13 +77,13 @@ const snapToGridModifier: Modifier = ({ transform }) => {
 
 // --- Draggable & Droppable Components ---
 
-function ClaseCard({ 
-  item, 
-  style, 
-  isGhost, 
-  isDraggingActive, 
-  listeners, 
-  attributes, 
+function ClaseCard({
+  item,
+  style,
+  isGhost,
+  isDraggingActive,
+  listeners,
+  attributes,
   setNodeRef,
   onClick,
   heightDelta = 0
@@ -134,7 +134,7 @@ function ClaseCard({
     >
       <div className="flex flex-col h-full overflow-hidden relative">
         <p className="text-[10px] font-bold text-primary-700 leading-none mb-1">
-           {item.hora.substring(0, 5)} - {endHora}
+          {item.hora.substring(0, 5)} - {endHora}
         </p>
         <p className="text-xs font-black text-surface-900 leading-tight truncate">
           {item.alumnos?.nombre} {item.alumnos?.apellido?.charAt(0)}.
@@ -144,7 +144,7 @@ function ClaseCard({
             {item.tema_previsto || "Sin tema"}
           </p>
         )}
-        
+
         {/* Resize Handle */}
         {!isGhost && !isDraggingActive && (
           <ResizeHandle id={item.id} item={item} />
@@ -186,18 +186,18 @@ function DraggableClase({ item, onClick, heightDelta = 0 }: { item: AgendaItem; 
   return (
     <>
       {isDragging && (
-        <ClaseCard 
-          item={item} 
-          isGhost={true} 
+        <ClaseCard
+          item={item}
+          isGhost={true}
         />
       )}
-      <ClaseCard 
-        item={item} 
-        style={style} 
-        isDraggingActive={isDragging} 
-        listeners={listeners} 
-        attributes={attributes} 
-        setNodeRef={setNodeRef} 
+      <ClaseCard
+        item={item}
+        style={style}
+        isDraggingActive={isDragging}
+        listeners={listeners}
+        attributes={attributes}
+        setNodeRef={setNodeRef}
         onClick={onClick}
         heightDelta={heightDelta}
       />
@@ -206,11 +206,11 @@ function DraggableClase({ item, onClick, heightDelta = 0 }: { item: AgendaItem; 
 }
 
 
-function DroppableColumna({ date, isToday, isPast, children }: { 
-  date: Date; 
+function DroppableColumna({ date, isToday, isPast, children }: {
+  date: Date;
   isToday: boolean;
   isPast: boolean;
-  children: React.ReactNode 
+  children: React.ReactNode
 }) {
   const dateKey = formatDateKey(date);
   const { setNodeRef, isOver } = useDroppable({
@@ -250,9 +250,9 @@ function DroppableColumna({ date, isToday, isPast, children }: {
     >
       {/* Grid lines */}
       {Array.from({ length: 15 }).map((_, i) => (
-        <div 
-          key={i} 
-          className="absolute left-0 right-0 border-t border-surface-100/30 h-0 pointer-events-none" 
+        <div
+          key={i}
+          className="absolute left-0 right-0 border-t border-surface-100/30 h-0 pointer-events-none"
           style={{ top: i * 80 }}
         />
       ))}
@@ -600,7 +600,7 @@ function EditarClaseModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 flex items-center gap-1"><Clock size={12}/> Hora</label>
+              <label className="text-xs font-bold text-surface-700 flex items-center gap-1"><Clock size={12} /> Hora</label>
               <input
                 type="time" required
                 value={formData.hora}
@@ -732,15 +732,15 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
     if (over) {
       const item = active.data.current as AgendaItem;
       const newDate = over.id as string;
-      
+
       const [h, m] = item.hora.split(":").map(Number);
       const originalMinutes = h * 60 + m;
       const pxPerMinute = 80 / 60;
       const deltaMinutes = Math.round(delta.y / pxPerMinute / 15) * 15;
-      
+
       let newMinutes = originalMinutes + deltaMinutes;
       newMinutes = Math.max(8 * 60, Math.min(22 * 60, newMinutes));
-      
+
       const newH = Math.floor(newMinutes / 60);
       const newM = newMinutes % 60;
       const newHora = `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
@@ -773,13 +773,13 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   useEffect(() => {
     if (!mounted) return;
     const controller = new AbortController();
-    
+
     const fetchFeriados = async () => {
       try {
         const year = currentMonday.getFullYear();
         const data = await getFeriados(year);
         if (controller.signal.aborted) return;
-        
+
         const map: Record<string, Feriado> = {};
         data.forEach(f => {
           map[formatFeriadoDate(f, year)] = f;
@@ -790,7 +790,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
       }
     };
     fetchFeriados();
-    
+
     return () => controller.abort();
   }, [currentMonday, mounted]);
 
@@ -924,52 +924,6 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
         </button>
       </div>
 
-      {/* Calendar Sync Section */}
-      {plan === "premium" && calendarUrl && (
-        <div className="rounded-2xl bg-white border border-surface-200 shadow-sm p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shrink-0">
-              <CalendarSync size={20} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-surface-900">Sincronizar con Google Calendar</h3>
-              <p className="text-xs text-surface-500 mt-0.5">Pegá este link en "Otros calendarios → Desde URL"</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 max-w-full sm:max-w-[250px]">
-            <div className="flex-1 rounded-lg bg-surface-50 border border-surface-200 px-3 py-2 text-xs text-surface-600 font-mono truncate">
-              {calendarUrl}
-            </div>
-            <button
-              onClick={handleCopyCalendar}
-              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-xs font-bold text-white hover:bg-primary-700 transition-colors shrink-0"
-            >
-              {calendarCopied ? <Check size={14} /> : <Copy size={14} />}
-              {calendarCopied ? "Copiado" : "Copiar"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {plan === "free" && (
-        <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0">
-              <CalendarSync size={20} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-amber-900">Sincronizar con Google Calendar</h3>
-              <p className="text-xs text-amber-700 mt-0.5">Llevá tu agenda a todos lados.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/perfil" className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-xs font-bold text-white hover:from-amber-500 hover:to-amber-600 transition-colors shadow-sm whitespace-nowrap">
-              <Crown size={14} /> Ser Premium
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* Weekly calendar grid */}
       <DndContext
         sensors={sensors}
@@ -1034,16 +988,16 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
                 const isPast = date < today && !isToday;
 
                 return (
-                  <DroppableColumna 
-                    key={key} 
-                    date={date} 
-                    isToday={isToday} 
+                  <DroppableColumna
+                    key={key}
+                    date={date}
+                    isToday={isToday}
                     isPast={isPast}
                   >
                     {items.map((item) => (
                       <DraggableClase key={item.id} item={item} onClick={() => setEditingItem(item)} />
                     ))}
-                    
+
                     {/* Ghost button to add class */}
                     {!isPast && (
                       <button
@@ -1109,6 +1063,52 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
           </div>
         )}
       </div>
+
+      {/* Calendar Sync Section */}
+      {plan === "premium" && calendarUrl && (
+        <div className="rounded-2xl bg-white border border-surface-200 shadow-sm p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 shrink-0">
+              <CalendarSync size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-surface-900">Sincronizar con Google Calendar</h3>
+              <p className="text-xs text-surface-500 mt-0.5">Pegá este link en "Otros calendarios → Desde URL"</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 max-w-full sm:max-w-[250px]">
+            <div className="flex-1 rounded-lg bg-surface-50 border border-surface-200 px-3 py-2 text-xs text-surface-600 font-mono truncate">
+              {calendarUrl}
+            </div>
+            <button
+              onClick={handleCopyCalendar}
+              className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-2 text-xs font-bold text-white hover:bg-primary-700 transition-colors shrink-0"
+            >
+              {calendarCopied ? <Check size={14} /> : <Copy size={14} />}
+              {calendarCopied ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {plan === "free" && (
+        <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 shrink-0">
+              <CalendarSync size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Sincronizar con Google Calendar</h3>
+              <p className="text-xs text-amber-700 mt-0.5">Sincronizá tu agenda y hablá con <b>Tiza</b>, tu asistente virtual.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/perfil" className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-amber-500 px-4 py-2 text-xs font-bold text-white hover:from-amber-500 hover:to-amber-600 transition-colors shadow-sm whitespace-nowrap">
+              <Crown size={14} /> Ser Premium
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {modalOpen && (
