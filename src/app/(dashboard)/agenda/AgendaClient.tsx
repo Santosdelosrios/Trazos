@@ -524,133 +524,88 @@ function PlanificarModal({
   );
 }
 
-// --- Edit Modal ---
-function EditarClaseModal({
-  item, onClose, alumnos,
+// --- Selection Modal ---
+function OpcionesClaseModal({
+  item,
+  onClose,
+  onEdit,
 }: {
   item: AgendaItem;
   onClose: () => void;
-  alumnos: any[];
+  onEdit: () => void;
 }) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    alumno_id: item.alumno_id,
-    hora: item.hora.substring(0, 5),
-    tema_previsto: item.tema_previsto || "",
-    tarifa_esperada: item.tarifa_esperada || 0,
-  });
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      const { actualizarClase } = await import("./actions");
-      await actualizarClase(item.id, formData);
-      onClose();
-    } catch (error: any) {
-      setErrorMsg("Error: " + (error.message || "No se pudo actualizar"));
-    } finally {
-      setIsSubmitting(false);
+  const canFinalize = useMemo(() => {
+    const now = new Date();
+    // Usamos en-CA para obtener YYYY-MM-DD de forma confiable
+    const todayStr = now.toLocaleDateString("en-CA");
+    
+    if (item.fecha < todayStr) return true;
+    if (item.fecha === todayStr) {
+      const [h, m] = item.hora.split(":").map(Number);
+      const startMinutes = h * 60 + m;
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      // Permitimos finalizar si faltan 15 min para empezar o si ya empezó/pasó
+      return currentMinutes >= (startMinutes - 15);
     }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm("¿Estás segura de que querés eliminar esta clase?")) return;
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      const { eliminarPlanificacion } = await import("./actions");
-      await eliminarPlanificacion(item.id);
-      onClose();
-    } catch (error: any) {
-      setErrorMsg("Error: " + (error.message || "No se pudo eliminar"));
-      setIsSubmitting(false);
-    }
-  };
+    return false;
+  }, [item]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 p-4 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-scale-up">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-surface-900">Editar Clase</h2>
-          <button onClick={onClose} className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
-            <X size={20} />
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-surface-900/40 backdrop-blur-sm" onClick={onClose} />
+      
+      {/* Modal */}
+      <div className="relative w-full max-w-[280px] rounded-[2.5rem] bg-white p-8 shadow-2xl animate-scale-up border border-surface-100">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
+            <Sparkles size={28} />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-surface-400 mb-1">Clase con</p>
+          <h3 className="text-xl font-black text-surface-900 leading-tight">
+            {item.alumnos?.nombre} {item.alumnos?.apellido}
+          </h3>
+        </div>
+        
+        <div className="space-y-3">
+          {canFinalize ? (
+            <Link
+              href={`/clases/nueva?alumnoId=${item.alumno_id}&tema=${encodeURIComponent(item.tema_previsto || "")}&agendaId=${item.id}`}
+              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-primary-500/20 hover:bg-primary-700 transition-all active:scale-95 hover:translate-y-[-2px]"
+            >
+              <Rocket size={18} strokeWidth={2.5} />
+              Finalizar clase
+            </Link>
+          ) : (
+            <div className="group relative">
+              <button
+                disabled
+                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-surface-100 px-6 py-4 text-sm font-black text-surface-400 cursor-not-allowed opacity-60"
+              >
+                <Rocket size={18} strokeWidth={2.5} />
+                Finalizar clase
+              </button>
+              <p className="mt-2 text-center text-[10px] font-bold text-amber-600 animate-pulse">
+                Disponible cuando empiece la clase
+              </p>
+            </div>
+          )}
+          
+          <button
+            onClick={onEdit}
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-surface-50 px-6 py-4 text-sm font-bold text-surface-700 hover:bg-surface-100 transition-all active:scale-95 border border-surface-100"
+          >
+            <Clock size={18} />
+            Editar clase
           </button>
         </div>
-
-        {errorMsg && <div className="mb-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-600 border border-danger-100">{errorMsg}</div>}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-surface-700">Alumno</label>
-            <select
-              required
-              value={formData.alumno_id}
-              onChange={(e) => setFormData({ ...formData, alumno_id: e.target.value })}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-            >
-              <option value="" disabled>Seleccionar alumno...</option>
-              {alumnos.map((a: any) => (
-                <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 flex items-center gap-1"><Clock size={12} /> Hora</label>
-              <input
-                type="time" required
-                value={formData.hora}
-                onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
-                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700">Monto a Cobrar</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2 text-surface-400 text-sm">$</span>
-                <input
-                  type="number" required
-                  value={formData.tarifa_esperada}
-                  onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-7 pr-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-surface-700">Temas de la clase</label>
-            <input
-              type="text" placeholder="Ej: Multiplicación y división"
-              value={formData.tema_previsto}
-              onChange={(e) => setFormData({ ...formData, tema_previsto: e.target.value })}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-            />
-          </div>
-
-          <div className="pt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isSubmitting}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-danger-200 bg-danger-50 text-danger-600 hover:bg-danger-100 transition-colors disabled:opacity-40"
-              title="Eliminar clase"
-            >
-              <Trash2 size={18} />
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-bold text-white shadow-md hover:bg-primary-700 transition-all active:scale-95 disabled:opacity-40"
-            >
-              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
-            </button>
-          </div>
-        </form>
+        
+        <button 
+          onClick={onClose}
+          className="mt-8 w-full text-[10px] font-black uppercase tracking-widest text-surface-400 hover:text-surface-600 transition-colors"
+        >
+          Cerrar
+        </button>
       </div>
     </div>
   );
@@ -668,6 +623,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   const [feriados, setFeriados] = useState<Record<string, Feriado>>({});
   const [calendarUrl, setCalendarUrl] = useState<string>("");
   const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
+  const [selectionItem, setSelectionItem] = useState<AgendaItem | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [resizingDeltaY, setResizingDeltaY] = useState(0);
 
@@ -995,7 +951,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
                     isPast={isPast}
                   >
                     {items.map((item) => (
-                      <DraggableClase key={item.id} item={item} onClick={() => setEditingItem(item)} />
+                      <DraggableClase key={item.id} item={item} onClick={() => setSelectionItem(item)} />
                     ))}
 
                     {/* Ghost button to add class */}
@@ -1122,6 +1078,17 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
         />
       )}
 
+      {selectionItem && (
+        <OpcionesClaseModal
+          item={selectionItem}
+          onClose={() => setSelectionItem(null)}
+          onEdit={() => {
+            setEditingItem(selectionItem);
+            setSelectionItem(null);
+          }}
+        />
+      )}
+
       {editingItem && (
         <EditarClaseModal
           item={editingItem}
@@ -1129,6 +1096,139 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
           onClose={() => setEditingItem(null)}
         />
       )}
+    </div>
+  );
+}
+
+// --- Modals Components ---
+
+function EditarClaseModal({
+  item, onClose, alumnos,
+}: {
+  item: AgendaItem;
+  onClose: () => void;
+  alumnos: any[];
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    alumno_id: item.alumno_id,
+    hora: item.hora.substring(0, 5),
+    tema_previsto: item.tema_previsto || "",
+    tarifa_esperada: item.tarifa_esperada || 0,
+  });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const { actualizarClase } = await import("./actions");
+      await actualizarClase(item.id, formData);
+      onClose();
+    } catch (error: any) {
+      setErrorMsg("Error: " + (error.message || "No se pudo actualizar"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("¿Estás segura de que querés eliminar esta clase?")) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const { eliminarPlanificacion } = await import("./actions");
+      await eliminarPlanificacion(item.id);
+      onClose();
+    } catch (error: any) {
+      setErrorMsg("Error: " + (error.message || "No se pudo eliminar"));
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 p-4 backdrop-blur-sm transition-opacity">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-scale-up border border-surface-100">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-surface-900">Editar Clase</h2>
+          <button onClick={onClose} className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {errorMsg && <div className="mb-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-600 border border-danger-100">{errorMsg}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Alumno</label>
+            <select
+              required
+              value={formData.alumno_id}
+              onChange={(e) => setFormData({ ...formData, alumno_id: e.target.value })}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+            >
+              <option value="" disabled>Seleccionar alumno...</option>
+              {alumnos.map((a: any) => (
+                <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider flex items-center gap-1"><Clock size={12} /> Hora</label>
+              <input
+                type="time" required
+                value={formData.hora}
+                onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Monto ARS</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-surface-400 text-sm">$</span>
+                <input
+                  type="number" required
+                  value={formData.tarifa_esperada}
+                  onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-7 pr-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Temas de la clase</label>
+            <input
+              type="text" placeholder="Ej: Multiplicación y división"
+              value={formData.tema_previsto}
+              onChange={(e) => setFormData({ ...formData, tema_previsto: e.target.value })}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+            />
+          </div>
+
+          <div className="pt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-danger-200 bg-danger-50 text-danger-600 hover:bg-danger-100 transition-colors disabled:opacity-40"
+              title="Eliminar clase"
+            >
+              <Trash2 size={18} />
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 rounded-xl bg-surface-900 py-3 text-sm font-bold text-white shadow-md hover:bg-surface-800 transition-all active:scale-95 disabled:opacity-40"
+            >
+              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

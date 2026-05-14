@@ -29,8 +29,8 @@ export async function generarEjercicios(
   try {
     const genAI = getGenAI();
 
-    const modelId = "gemini-3.1-flash-lite";
-    const fallbackModelId = "gemini-2.5-flash";
+    const modelId = "gemini-2.5-flash";
+    const fallbackModelId = "gemini-2.5-flash-lite";
 
     const getModel = (id: string) => genAI.getGenerativeModel({
       model: id,
@@ -189,7 +189,7 @@ Datos del mes:
 
 Estructura del informe (redactar en 3 párrafos cortos):
 1. Introducción: Resumen general del compromiso y actitud del alumno durante el mes.
-2. Desarrollo: Comentario sobre la comprensión de los temas vistos (${temas.slice(0,3).join(", ")}...) y logros específicos basados en los hitos.
+2. Desarrollo: Comentario sobre la comprensión de los temas vistos (${temas.slice(0, 3).join(", ")}...) y logros específicos basados en los hitos.
 3. Conclusión: Sugerencias breves para reforzar en casa o qué se trabajará el mes siguiente.
 
 Tono: Cálido, alentador pero profesional. Usar español rioplatense sutil (ej: "Santi trabajó muy bien", "notamos un gran avance"). No usar emojis ni formato markdown complejo. Máximo 150 palabras.`;
@@ -199,7 +199,7 @@ Tono: Cálido, alentador pero profesional. Usar español rioplatense sutil (ej: 
   } catch (error) {
     console.warn("⚠️ Gemini falló al generar reporte mensual. Usando modo MOCK.", error);
     await new Promise((r) => setTimeout(r, 1500));
-    return `Durante este mes, ${alumno.nombre} demostró un buen nivel de compromiso en las ${clases.length} clases realizadas. Trabajamos temas como ${temas.slice(0,2).join(" y ") || "los planificados"}, mostrando disposición para aprender.
+    return `Durante este mes, ${alumno.nombre} demostró un buen nivel de compromiso en las ${clases.length} clases realizadas. Trabajamos temas como ${temas.slice(0, 2).join(" y ") || "los planificados"}, mostrando disposición para aprender.
 
 En general, su comprensión fue favorable, reflejándose en su promedio de ${promedio || "desempeño"}. Observamos avances en los conceptos más complejos, aunque seguiremos repasando para consolidar la base.
 

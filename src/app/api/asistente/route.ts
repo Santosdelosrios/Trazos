@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     const feriadosList = feriadosRaw.map(f => `${formatFeriadoDate(f, new Date().getFullYear())}: ${f.motivo} (${f.tipo})`);
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite", // Usando el ID verificado del proyecto
+      model: "gemini-3.1-flash-lite", // Usando Gemini 3.1 Flash Lite (15 RPM)
       systemInstruction: buildAsistenteSystemPrompt(feriadosList),
       tools: [{ functionDeclarations: TOOL_DECLARATIONS as any }],
       generationConfig: {
