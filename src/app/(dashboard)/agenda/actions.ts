@@ -3,8 +3,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { Materia } from "@/lib/types/database";
+import {
+  PlanificarClaseSchema,
+  ActualizarClaseSchema,
+  ActualizarHorarioSchema,
+  ActualizarDuracionSchema,
+} from "@/lib/validations/schemas";
 
-export async function planificarClase(data: {
+export async function planificarClase(rawInput: {
   alumno_id: string;
   fecha: string;
   hora: string;
@@ -16,16 +22,20 @@ export async function planificarClase(data: {
   semanas?: number;
 }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) throw new Error("No autenticado");
+
+  const data = PlanificarClaseSchema.parse(rawInput);
 
   const recordsToInsert = [];
   const cantidadSemanas = data.repetirSemanal ? (data.semanas || 1) : 1;
 
   for (let i = 0; i < cantidadSemanas; i++) {
     const fechaClase = new Date(data.fecha + "T12:00:00");
-    fechaClase.setDate(fechaClase.getDate() + (i * 7));
+    fechaClase.setDate(fechaClase.getDate() + i * 7);
 
     recordsToInsert.push({
       maestra_id: user.id,
@@ -50,7 +60,17 @@ export async function planificarClase(data: {
 
 export async function eliminarPlanificacion(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("agenda").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  const { error } = await supabase
+    .from("agenda")
+    .delete()
+    .eq("id", id)
+    .eq("maestra_id", user.id);
 
   if (error) throw new Error(error.message);
 
@@ -59,58 +79,203 @@ export async function eliminarPlanificacion(id: string) {
 
 export async function completarPlanificacion(id: string) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
   const { error } = await supabase
+    .from("agenda")
+    .update({ estado: "completada" })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function actualizarHorarioClase(
+  id: string,
+  fecha: string,
+  hora: string
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  const valid = ActualizarHorarioSchema.parse({ fecha, hora });
+
+  const { error } = await supabase
+    .from("agenda")
+    .update({ fecha: valid.fecha, hora: valid.hora })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function actualizarClase(
+  id: string,
+  rawInput: {
+    hora: string;
+    alumno_id: string;
+    tarifa_esperada: number;
+    tema_previsto: string;
+  }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  const valid = ActualizarClaseSchema.parse(rawInput);
+
+  const { error } = await supabase
+    .from("agenda")
+    .update({
+      hora: valid.hora,
+      alumno_id: valid.alumno_id,
+      tarifa_esperada: valid.tarifa_esperada,
+      tema_previsto: valid.tema_previsto,
+    })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function actualizarDuracionClase(
+  id: string,
+  duracion_estimada: number
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  const valid = ActualizarDuracionSchema.parse({ duracion_estimada });
+
+  const { error } = await supabase
+    .from("agenda")
+    .update({ duracion_estimada: valid.duracion_estimada })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+}
+
+export async function cerrarClaseExpress(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  // 1. Obtener la cita de la agenda
+  const { data: agenda, error: agendaError } = await supabase
+    .from("agenda")
+    .select("*")
+    .eq("id", id)
+    .eq("maestra_id", user.id)
+    .single();
+
+  if (agendaError || !agenda) throw new Error("Error al obtener la clase de la agenda");
+
+  // 2. Obtener el grado del alumno
+  const { data: alumno } = await supabase
+    .from("alumnos")
+    .select("grado")
+    .eq("id", agenda.alumno_id)
+    .single();
+
+  const grado_target = alumno?.grado || 1;
+  const temaNombre = agenda.tema_previsto || "Clase sin tema";
+
+  // 3. Buscar o crear el tema
+  const { data: existingTema } = await supabase
+    .from("temas")
+    .select("id")
+    .eq("maestra_id", user.id)
+    .ilike("nombre", temaNombre)
+    .eq("materia", agenda.materia)
+    .maybeSingle();
+
+  let temaId = existingTema?.id;
+
+  if (!temaId) {
+    const { data: newTema } = await supabase
+      .from("temas")
+      .insert({
+        maestra_id: user.id,
+        nombre: temaNombre,
+        materia: agenda.materia,
+      })
+      .select("id")
+      .single();
+    if (newTema) temaId = newTema.id;
+  }
+
+  // 4. Crear la clase
+  const { data: clase, error: errorClase } = await supabase
+    .from("clases")
+    .insert({
+      maestra_id: user.id,
+      tema: temaNombre,
+      materia: agenda.materia,
+      grado_target: grado_target,
+      duracion_real: agenda.duracion_estimada || 1,
+      fecha: agenda.fecha,
+      tema_id: temaId,
+    })
+    .select("id")
+    .single();
+
+  if (errorClase || !clase) throw new Error("Error al crear la clase");
+
+  if (temaId) {
+    await supabase.from("clases_temas").insert({
+      clase_id: clase.id,
+      tema_id: temaId
+    });
+  }
+
+  // 5. Crear vínculo clase_alumno
+  await supabase.from("clase_alumnos").insert({
+    clase_id: clase.id,
+    alumno_id: agenda.alumno_id,
+  });
+
+  // 6. Registrar el pago (pendiente por defecto)
+  const monto = agenda.tarifa_esperada || 0;
+  await supabase.from("pagos").insert({
+    maestra_id: user.id,
+    alumno_id: agenda.alumno_id,
+    clase_id: clase.id,
+    monto: monto,
+    estado: "pendiente",
+  });
+
+  // 7. Marcar agenda como completada
+  await supabase
     .from("agenda")
     .update({ estado: "completada" })
     .eq("id", id);
 
-  if (error) throw new Error(error.message);
-
   revalidatePath("/agenda");
-}
-
-export async function actualizarHorarioClase(id: string, fecha: string, hora: string) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("agenda")
-    .update({ fecha, hora })
-    .eq("id", id);
-
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/agenda");
-}
-
-export async function actualizarClase(id: string, data: {
-  hora: string;
-  alumno_id: string;
-  tarifa_esperada: number;
-  tema_previsto: string;
-}) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("agenda")
-    .update({
-      hora: data.hora,
-      alumno_id: data.alumno_id,
-      tarifa_esperada: data.tarifa_esperada,
-      tema_previsto: data.tema_previsto
-    })
-    .eq("id", id);
-
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/agenda");
-}
-
-export async function actualizarDuracionClase(id: string, duracion_estimada: number) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("agenda")
-    .update({ duracion_estimada })
-    .eq("id", id);
-
-  if (error) throw new Error(error.message);
-
-  revalidatePath("/agenda");
+  revalidatePath("/clases");
+  revalidatePath("/dashboard");
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateProfile } from "./actions";
+import { updateProfile, deleteAccount } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
@@ -49,6 +49,7 @@ export default function PerfilClient({
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -444,6 +445,46 @@ export default function PerfilClient({
             >
               <LogOut size={16} />
               {isLoggingOut ? "Cerrando..." : "Cerrar sesión"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Zona Peligrosa */}
+      <div className="rounded-2xl bg-white border border-danger-200 shadow-sm overflow-hidden mt-8">
+        <div className="px-6 py-4 border-b border-danger-100 bg-danger-50/30">
+          <h3 className="text-sm font-bold text-danger-900">Zona Peligrosa</h3>
+        </div>
+        <div className="p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold text-surface-900">
+                Eliminar mi cuenta
+              </p>
+              <p className="text-xs text-surface-500 mt-1 max-w-md">
+                Esta acción borrará permanentemente tu perfil, todos tus alumnos, clases, finanzas e hitos pedagógicos. <strong className="text-danger-600">No se puede deshacer.</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={isDeletingAccount}
+              onClick={async () => {
+                const conf1 = confirm("¿Estás 100% seguro de que querés ELIMINAR tu cuenta?");
+                if (!conf1) return;
+                const conf2 = prompt("Escribí 'ELIMINAR' para confirmar la eliminación permanente de todos tus datos.");
+                if (conf2 === "ELIMINAR") {
+                  setIsDeletingAccount(true);
+                  try {
+                    await deleteAccount();
+                  } catch (e) {
+                    setIsDeletingAccount(false);
+                  }
+                }
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-danger-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-danger-700 active:scale-95 disabled:opacity-50"
+            >
+              <X size={16} />
+              {isDeletingAccount ? "Eliminando..." : "Eliminar cuenta"}
             </button>
           </div>
         </div>

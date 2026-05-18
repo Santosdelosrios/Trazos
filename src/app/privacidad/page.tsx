@@ -32,14 +32,14 @@ export default function PrivacidadPage() {
             <section className="space-y-4">
               <h2 className="text-xl font-bold text-[var(--color-surface-900)]">1. Introducción</h2>
               <p>
-                En <strong>Trazos</strong> ("nosotros", "la plataforma"), nos tomamos muy en serio la privacidad de nuestros usuarios (las maestras y docentes) y la de sus alumnos. Esta Política de Privacidad explica cómo recopilamos, usamos y protegemos la información cuando utilizás nuestra plataforma.
+                En <strong>Trazos</strong> ("nosotros", "la plataforma"), nos tomamos muy en serio la privacidad de nuestros usuarios (docentes y profesionales de la educación) y la de sus alumnos. Esta Política de Privacidad explica cómo recopilamos, usamos y protegemos la información cuando utilizás nuestra plataforma.
               </p>
             </section>
 
             <section className="space-y-4">
               <h2 className="text-xl font-bold text-[var(--color-surface-900)]">2. Datos que recopilamos</h2>
               <ul className="list-disc pl-5 space-y-2">
-                <li><strong>De la Maestra:</strong> Nombre, dirección de correo electrónico y datos de autenticación necesarios para crear tu cuenta y mantenerla segura.</li>
+                <li><strong>Del Docente:</strong> Nombre, dirección de correo electrónico y datos de autenticación necesarios para crear tu cuenta y mantenerla segura.</li>
                 <li><strong>De los Alumnos:</strong> Nombres (o apodos), nivel educativo (grado) y notas descriptivas que vos decidas cargar. Recomendamos <em>no incluir datos sensibles</em> (como DNI, apellidos completos o direcciones físicas) que no sean estrictamente necesarios para tu uso pedagógico.</li>
                 <li><strong>Datos de la Clase:</strong> Temas abordados, fechas, autoevaluaciones y resúmenes generados por Inteligencia Artificial.</li>
               </ul>
@@ -64,7 +64,7 @@ export default function PrivacidadPage() {
               </p>
               <ul className="list-disc pl-5 space-y-2">
                 <li>Vos y solo vos podés acceder a la información de tus alumnos y tus clases.</li>
-                <li>Ningún otro usuario o maestra en Trazos puede ver tus datos, ni siquiera por accidente.</li>
+                <li>Ningún otro usuario o docente en Trazos puede ver tus datos, ni siquiera por accidente.</li>
                 <li>No vendemos, alquilamos ni comercializamos tu información personal ni la de tus alumnos a terceros.</li>
               </ul>
             </section>

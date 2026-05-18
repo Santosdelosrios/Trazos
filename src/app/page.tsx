@@ -13,7 +13,7 @@ export default function Home() {
           <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-600)] flex items-center justify-center text-white shadow-sm rotate-[-3deg]">
             <PenTool className="w-4 h-4" />
           </div>
-          <span className="font-bold text-xl tracking-tight text-[var(--color-surface-800)]">Trazos de Maestra</span>
+          <span className="font-bold text-xl tracking-tight text-[var(--color-surface-800)]">Trazos</span>
         </div>
         <Link
           href="/dashboard"
@@ -34,7 +34,7 @@ export default function Home() {
             
             <h1 className="text-5xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight">
               Dar clases particulares es un caos. <br />
-              <span className="trazos-heading text-[var(--color-primary-700)]">Trazos de Maestra es tu cuaderno en limpio.</span>
+              <span className="trazos-heading text-[var(--color-primary-700)]">Trazos es tu cuaderno en limpio.</span>
             </h1>
             
             <p className="text-xl text-[var(--color-surface-700)] leading-relaxed max-w-lg mt-6 font-medium">
@@ -141,7 +141,7 @@ export default function Home() {
                 <span className="trazos-highlight">¿Tenés alguna idea?</span>
               </h2>
               <p className="text-[var(--color-surface-600)] text-lg leading-relaxed">
-                Trazos de Maestra está creciendo y me encantaría saber qué te gustaría que haga. ¿Falta alguna materia? ¿Tenés un problema con un cobro? ¿Alguna sugerencia para mejorar la IA?
+                Trazos está creciendo y me encantaría saber qué te gustaría que haga. ¿Falta alguna materia? ¿Tenés un problema con un cobro? ¿Alguna sugerencia para mejorar la IA?
               </p>
               <div className="pt-4 flex flex-col sm:flex-row gap-4">
                 <a 
@@ -160,7 +160,7 @@ export default function Home() {
                   ¿Es realmente gratis?
                 </h3>
                 <p className="text-sm text-[var(--color-surface-500)]">
-                  Sí, la versión base de Trazos de Maestra es totalmente gratis. También ofrecemos un plan Premium para maestras con muchos alumnos.
+                  Sí, la versión base de Trazos es totalmente gratis. También ofrecemos un plan Premium para docentes con muchos alumnos.
                 </p>
               </div>
               

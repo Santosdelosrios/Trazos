@@ -21,7 +21,7 @@ export default async function CobranzasPage() {
     .eq("id", user.id)
     .maybeSingle();
   
-  const nombreMaestra = maestraData?.nombre ?? user.user_metadata?.nombre ?? "Maestra";
+  const nombreMaestra = maestraData?.nombre ?? user.user_metadata?.nombre ?? "Profe";
 
   // Pagos con datos del alumno
   const { data: pagos } = await supabase

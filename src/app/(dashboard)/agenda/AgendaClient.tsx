@@ -4,20 +4,20 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { type AgendaItem } from "@/lib/types/database";
-import { planificarClase, eliminarPlanificacion, actualizarHorarioClase } from "./actions";
+import { planificarClase, actualizarHorarioClase } from "./actions";
 import {
-  CalendarDays, Sparkles, RefreshCw, X, Plus,
-  ChevronLeft, ChevronRight, Rocket, Trash2, Clock, History,
+  CalendarDays, Plus,
+  ChevronLeft, ChevronRight, History,
   CalendarSync, Copy, Check, Crown
 } from "lucide-react";
 import {
   DndContext,
-  DragOverlay,
   useSensor,
   useSensors,
   MouseSensor,
   TouchSensor,
   type DragEndEvent,
+  type DragMoveEvent,
   useDraggable,
   useDroppable,
   type Modifier,
@@ -27,18 +27,21 @@ import type { ClaseCerrada } from "./page";
 
 interface AgendaClientProps {
   initialAgenda: AgendaItem[];
-  alumnos: any[];
+  alumnos: { id: string; nombre: string; apellido: string }[];
   tarifaActual: number | null;
   clasesCerradas: ClaseCerrada[];
   plan?: "free" | "premium";
   calendarToken?: string | null;
 }
+import dynamic from "next/dynamic";
 import { getFeriados, formatFeriadoDate, type Feriado } from "@/lib/utils/feriados";
-import { Info } from "lucide-react";
+
+const PlanificarModal = dynamic(() => import("./modals/PlanificarModal"), { ssr: false });
+const OpcionesClaseModal = dynamic(() => import("./modals/OpcionesClaseModal"), { ssr: false });
+const EditarClaseModal = dynamic(() => import("./modals/EditarClaseModal"), { ssr: false });
 
 // --- Helpers ---
 const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const DIAS_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -87,7 +90,17 @@ function ClaseCard({
   setNodeRef,
   onClick,
   heightDelta = 0
-}: any) {
+}: {
+  item: AgendaItem;
+  style?: React.CSSProperties;
+  isGhost?: boolean;
+  isDraggingActive?: boolean;
+  listeners?: unknown;
+  attributes?: unknown;
+  setNodeRef?: (node: HTMLElement | null) => void;
+  onClick?: () => void;
+  heightDelta?: number;
+}) {
   const [h, m] = item.hora.split(":").map(Number);
   const startMinutes = h * 60 + m;
   const pxPerMinute = 80 / 60;
@@ -107,7 +120,7 @@ function ClaseCard({
   return (
     <div
       ref={setNodeRef}
-      onClick={(e) => {
+      onClick={() => {
         // Evitar que el clic se dispare si estamos redimensionando
         if (heightDelta !== 0) return;
         onClick?.();
@@ -129,8 +142,8 @@ function ClaseCard({
         "bg-white border-l-4 border-l-primary-500",
         "hover:shadow-md hover:border-primary-200"
       )}
-      {...listeners}
-      {...attributes}
+      {...(listeners as Record<string, unknown>)}
+      {...(attributes as Record<string, unknown>)}
     >
       <div className="flex flex-col h-full overflow-hidden relative">
         <p className="text-[10px] font-bold text-primary-700 leading-none mb-1">
@@ -154,7 +167,7 @@ function ClaseCard({
   );
 }
 
-function ResizeHandle({ id, item }: { id: string; item: any }) {
+function ResizeHandle({ id, item }: { id: string; item: AgendaItem }) {
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: `resize-${id}`,
     data: { type: 'resize', item },
@@ -272,345 +285,6 @@ function DroppableColumna({ date, isToday, isPast, children }: {
   );
 }
 
-
-
-// --- Modal Component ---
-function PlanificarModal({
-  open, onClose, alumnos, tarifaActual, prefillDate, feriados,
-}: {
-  open: boolean;
-  onClose: () => void;
-  alumnos: any[];
-  tarifaActual: number | null;
-  prefillDate?: string;
-  feriados: Record<string, Feriado>;
-}) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    alumno_id: "",
-    fecha: prefillDate || new Date().toISOString().split("T")[0],
-    hora: "09:00",
-    tema_previsto: "",
-    materia: "general" as any,
-    duracion_estimada: 1,
-    tarifa_esperada: tarifaActual || 0,
-    repetirSemanal: false,
-    semanas: 4,
-  });
-
-  // Reset when date changes from outside
-  const resetForm = () => {
-    setStep(1);
-    setFormData({
-      alumno_id: "",
-      fecha: prefillDate || new Date().toISOString().split("T")[0],
-      hora: "09:00",
-      tema_previsto: "",
-      materia: "otro" as any,
-      duracion_estimada: 1,
-      tarifa_esperada: tarifaActual || 0,
-      repetirSemanal: false,
-      semanas: 4,
-    });
-  };
-
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.alumno_id) return;
-
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      await planificarClase(formData);
-      resetForm();
-      onClose();
-    } catch (error: any) {
-      setErrorMsg("Error: " + (error.message || "No se pudo agendar la clase"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-surface-900/30 backdrop-blur-sm" onClick={handleClose} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-lg rounded-2xl border border-surface-200 bg-white shadow-2xl animate-fade-in-up overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-surface-100 bg-primary-50/50 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-600">
-              <CalendarDays size={18} />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-surface-900">Planificar Clase</h2>
-              <p className="text-[10px] font-medium text-surface-500">Paso {step} de 2</p>
-            </div>
-          </div>
-          <button onClick={handleClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Steps indicator */}
-        <div className="flex gap-1 px-6 pt-4">
-          <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 1 ? "bg-primary-500" : "bg-surface-200")} />
-          <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 2 ? "bg-primary-500" : "bg-surface-200")} />
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          {errorMsg && (
-            <div className="rounded-xl bg-danger-50 p-3 text-sm text-danger-600 border border-danger-100">
-              {errorMsg}
-            </div>
-          )}
-          {step === 1 && (
-            <>
-              {/* Step 1: Quién y Cuándo */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-surface-700 uppercase">Alumno</label>
-                <select
-                  required
-                  value={formData.alumno_id}
-                  onChange={(e) => setFormData({ ...formData, alumno_id: e.target.value })}
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                >
-                  <option value="">Seleccioná un alumno</option>
-                  {alumnos.map((a) => (
-                    <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-surface-700 uppercase">Fecha</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.fecha}
-                    onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-surface-700 uppercase">Hora</label>
-                  <input
-                    type="time"
-                    required
-                    value={formData.hora}
-                    onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                  />
-                </div>
-              </div>
-
-              {feriados[formData.fecha] && (
-                <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 border border-amber-100">
-                  <Info size={14} className="text-amber-600 shrink-0" />
-                  <p className="text-[10px] font-medium text-amber-800 leading-tight">
-                    Ojo: El {new Date(formData.fecha + "T12:00:00").toLocaleDateString("es-AR", { day: 'numeric', month: 'long' })} es feriado: <span className="font-bold">{feriados[formData.fecha].motivo}</span>.
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  disabled={!formData.alumno_id}
-                  onClick={() => setStep(2)}
-                  className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Siguiente <ChevronRight size={16} />
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              {/* Step 2: Qué y Cuánto */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-surface-700 uppercase">Tema Previsto</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Fracciones equivalentes..."
-                  value={formData.tema_previsto}
-                  onChange={(e) => setFormData({ ...formData, tema_previsto: e.target.value })}
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-surface-700 uppercase">Duración (hs)</label>
-                  <input
-                    type="number" min="0.5" step="0.5" required
-                    value={formData.duracion_estimada}
-                    onChange={(e) => {
-                      const dur = Number(e.target.value);
-                      setFormData({ ...formData, duracion_estimada: dur, tarifa_esperada: (tarifaActual || 0) * dur });
-                    }}
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-surface-700 uppercase">Total ARS</label>
-                  <input
-                    type="number" min="0" step="100" required
-                    value={formData.tarifa_esperada}
-                    onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
-                  />
-                </div>
-              </div>
-
-              {/* Recurrencia */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw size={16} className="text-primary-600" />
-                    <span className="text-xs font-bold text-surface-700">Repetir semanalmente</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={formData.repetirSemanal}
-                    onChange={(e) => setFormData({ ...formData, repetirSemanal: e.target.checked })}
-                    className="h-4 w-4 rounded border-surface-300 text-primary-600 focus:ring-primary-500"
-                  />
-                </div>
-                {formData.repetirSemanal && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="text-[10px] font-medium text-surface-500">Semanas:</label>
-                    <input
-                      type="number" min="2" max="12"
-                      value={formData.semanas}
-                      onChange={(e) => setFormData({ ...formData, semanas: Number(e.target.value) })}
-                      className="w-16 rounded-lg border border-surface-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-2 flex justify-between">
-                <button type="button" onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-medium text-surface-500 hover:text-surface-700 transition-colors">
-                  <ChevronLeft size={16} /> Atrás
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 rounded-xl bg-surface-900 px-6 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-surface-800 transition-all active:scale-95 disabled:opacity-40"
-                >
-                  {isSubmitting ? "Guardando..." : "Confirmar"}
-                </button>
-              </div>
-            </>
-          )}
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// --- Selection Modal ---
-function OpcionesClaseModal({
-  item,
-  onClose,
-  onEdit,
-}: {
-  item: AgendaItem;
-  onClose: () => void;
-  onEdit: () => void;
-}) {
-  const canFinalize = useMemo(() => {
-    const now = new Date();
-    // Usamos en-CA para obtener YYYY-MM-DD de forma confiable
-    const todayStr = now.toLocaleDateString("en-CA");
-    
-    if (item.fecha < todayStr) return true;
-    if (item.fecha === todayStr) {
-      const [h, m] = item.hora.split(":").map(Number);
-      const startMinutes = h * 60 + m;
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      // Permitimos finalizar si faltan 15 min para empezar o si ya empezó/pasó
-      return currentMinutes >= (startMinutes - 15);
-    }
-    return false;
-  }, [item]);
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-surface-900/40 backdrop-blur-sm" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="relative w-full max-w-[280px] rounded-[2.5rem] bg-white p-8 shadow-2xl animate-scale-up border border-surface-100">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
-            <Sparkles size={28} />
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-surface-400 mb-1">Clase con</p>
-          <h3 className="text-xl font-black text-surface-900 leading-tight">
-            {item.alumnos?.nombre} {item.alumnos?.apellido}
-          </h3>
-        </div>
-        
-        <div className="space-y-3">
-          {canFinalize ? (
-            <Link
-              href={`/clases/nueva?alumnoId=${item.alumno_id}&tema=${encodeURIComponent(item.tema_previsto || "")}&agendaId=${item.id}`}
-              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary-600 px-6 py-4 text-sm font-black text-white shadow-lg shadow-primary-500/20 hover:bg-primary-700 transition-all active:scale-95 hover:translate-y-[-2px]"
-            >
-              <Rocket size={18} strokeWidth={2.5} />
-              Finalizar clase
-            </Link>
-          ) : (
-            <div className="group relative">
-              <button
-                disabled
-                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-surface-100 px-6 py-4 text-sm font-black text-surface-400 cursor-not-allowed opacity-60"
-              >
-                <Rocket size={18} strokeWidth={2.5} />
-                Finalizar clase
-              </button>
-              <p className="mt-2 text-center text-[10px] font-bold text-amber-600 animate-pulse">
-                Disponible cuando empiece la clase
-              </p>
-            </div>
-          )}
-          
-          <button
-            onClick={onEdit}
-            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-surface-50 px-6 py-4 text-sm font-bold text-surface-700 hover:bg-surface-100 transition-all active:scale-95 border border-surface-100"
-          >
-            <Clock size={18} />
-            Editar clase
-          </button>
-        </div>
-        
-        <button 
-          onClick={onClose}
-          className="mt-8 w-full text-[10px] font-black uppercase tracking-widest text-surface-400 hover:text-surface-600 transition-colors"
-        >
-          Cerrar
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // --- Main Component ---
 export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
   const [mounted, setMounted] = useState(false);
@@ -621,7 +295,9 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   const [showCerradas, setShowCerradas] = useState(false);
   const [calendarCopied, setCalendarCopied] = useState(false);
   const [feriados, setFeriados] = useState<Record<string, Feriado>>({});
-  const [calendarUrl, setCalendarUrl] = useState<string>("");
+  const calendarUrl = mounted && calendarToken && typeof window !== "undefined"
+    ? `${window.location.origin}/api/calendar/${calendarToken}`
+    : "";
   const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
   const [selectionItem, setSelectionItem] = useState<AgendaItem | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
@@ -643,16 +319,16 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
 
   const [activeItem, setActiveItem] = useState<AgendaItem | null>(null);
 
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: { active: { id: string | number; data: { current?: unknown } } }) => {
     const { active } = event;
     if (active.id.toString().startsWith("resize-")) {
-      setResizingId(active.data.current.item.id);
+      setResizingId((active.data.current as { item: AgendaItem }).item.id);
       return;
     }
-    setActiveItem(active.data.current);
+    setActiveItem(active.data.current as AgendaItem);
   };
 
-  const handleDragMove = (event: any) => {
+  const handleDragMove = (event: DragMoveEvent) => {
     if (resizingId) {
       const { delta } = event;
       setResizingDeltaY(delta.y);
@@ -663,7 +339,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
     const { active, over, delta } = event;
 
     if (resizingId) {
-      const item = (active.data.current as any).item;
+      const item = (active.data.current as { item?: AgendaItem })?.item;
       if (item) {
         // 20px = 15 min. Snapping manual aquí.
         const snappedDeltaY = Math.round(resizingDeltaY / 20) * 20;
@@ -713,16 +389,13 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   };
 
   useEffect(() => {
-    if (calendarToken) {
-      setCalendarUrl(`${window.location.origin}/api/calendar/${calendarToken}`);
-    }
-  }, [calendarToken]);
-
-  useEffect(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToday(t);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentMonday(getMonday(t));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -794,16 +467,6 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   const openModal = () => {
     setPrefillDate(undefined);
     setModalOpen(true);
-  };
-
-  const handleEliminar = async (id: string) => {
-    if (confirm("¿Eliminar esta planificación?")) {
-      try {
-        await eliminarPlanificacion(id);
-      } catch (error: any) {
-        alert("Error al eliminar: " + (error.message || "Intentá de nuevo"));
-      }
-    }
   };
 
   const handleCopyCalendar = () => {
@@ -1029,7 +692,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             </div>
             <div>
               <h3 className="text-sm font-bold text-surface-900">Sincronizar con Google Calendar</h3>
-              <p className="text-xs text-surface-500 mt-0.5">Pegá este link en "Otros calendarios → Desde URL"</p>
+              <p className="text-xs text-surface-500 mt-0.5">Pegá este link en &quot;Otros calendarios &rarr; Desde URL&quot;</p>
             </div>
           </div>
           <div className="flex items-center gap-2 max-w-full sm:max-w-[250px]">
@@ -1100,135 +763,3 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
   );
 }
 
-// --- Modals Components ---
-
-function EditarClaseModal({
-  item, onClose, alumnos,
-}: {
-  item: AgendaItem;
-  onClose: () => void;
-  alumnos: any[];
-}) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    alumno_id: item.alumno_id,
-    hora: item.hora.substring(0, 5),
-    tema_previsto: item.tema_previsto || "",
-    tarifa_esperada: item.tarifa_esperada || 0,
-  });
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      const { actualizarClase } = await import("./actions");
-      await actualizarClase(item.id, formData);
-      onClose();
-    } catch (error: any) {
-      setErrorMsg("Error: " + (error.message || "No se pudo actualizar"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm("¿Estás segura de que querés eliminar esta clase?")) return;
-    setIsSubmitting(true);
-    setErrorMsg(null);
-    try {
-      const { eliminarPlanificacion } = await import("./actions");
-      await eliminarPlanificacion(item.id);
-      onClose();
-    } catch (error: any) {
-      setErrorMsg("Error: " + (error.message || "No se pudo eliminar"));
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/40 p-4 backdrop-blur-sm transition-opacity">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-scale-up border border-surface-100">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-surface-900">Editar Clase</h2>
-          <button onClick={onClose} className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {errorMsg && <div className="mb-4 rounded-lg bg-danger-50 p-3 text-sm text-danger-600 border border-danger-100">{errorMsg}</div>}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Alumno</label>
-            <select
-              required
-              value={formData.alumno_id}
-              onChange={(e) => setFormData({ ...formData, alumno_id: e.target.value })}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-            >
-              <option value="" disabled>Seleccionar alumno...</option>
-              {alumnos.map((a: any) => (
-                <option key={a.id} value={a.id}>{a.nombre} {a.apellido}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider flex items-center gap-1"><Clock size={12} /> Hora</label>
-              <input
-                type="time" required
-                value={formData.hora}
-                onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
-                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Monto ARS</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-surface-400 text-sm">$</span>
-                <input
-                  type="number" required
-                  value={formData.tarifa_esperada}
-                  onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-7 pr-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Temas de la clase</label>
-            <input
-              type="text" placeholder="Ej: Multiplicación y división"
-              value={formData.tema_previsto}
-              onChange={(e) => setFormData({ ...formData, tema_previsto: e.target.value })}
-              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-            />
-          </div>
-
-          <div className="pt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isSubmitting}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-danger-200 bg-danger-50 text-danger-600 hover:bg-danger-100 transition-colors disabled:opacity-40"
-              title="Eliminar clase"
-            >
-              <Trash2 size={18} />
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 rounded-xl bg-surface-900 py-3 text-sm font-bold text-white shadow-md hover:bg-surface-800 transition-all active:scale-95 disabled:opacity-40"
-            >
-              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}

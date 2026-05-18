@@ -17,7 +17,7 @@ export type NivelComprension =
   | "lo_entendio"
   | "puede_explicarlo";
 
-export type Grado = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type Nivel = string;
 
 export type Autoevaluacion = 1 | 2 | 3 | 4;
 
@@ -40,7 +40,7 @@ export interface Alumno {
   maestra_id: string;
   nombre: string;
   apellido: string;
-  grado: Grado;
+  grado: Nivel;
   notas?: string | null;
   created_at: string;
 }
@@ -50,7 +50,7 @@ export interface Clase {
   maestra_id: string;
   tema: string;
   materia: Materia;
-  grado_target: Grado;
+  grado_target: Nivel;
   ejercicio_generado: EjercicioGenerado | null;
   fecha: string;
   duracion_real?: number;
@@ -222,15 +222,26 @@ export const MATERIA_ICONS: Record<Materia, string> = {
   general: "",
 };
 
-export const GRADO_LABELS: Record<Grado, string> = {
-  1: "1° grado",
-  2: "2° grado",
-  3: "3° grado",
-  4: "4° grado",
-  5: "5° grado",
-  6: "6° grado",
-  7: "7° grado",
-};
+/** Sugerencias de niveles para el selector */
+export const NIVEL_SUGERENCIAS: string[] = [
+  "1° grado",
+  "2° grado",
+  "3° grado",
+  "4° grado",
+  "5° grado",
+  "6° grado",
+  "7° grado",
+  "1° año secundaria",
+  "2° año secundaria",
+  "3° año secundaria",
+  "4° año secundaria",
+  "5° año secundaria",
+  "6° año secundaria",
+  "Nivel inicial",
+  "Universitario",
+  "Adultos",
+  "Sesión psicopedagógica",
+];
 
 export const AUTOEVALUACION_CONFIG: Record<
   Autoevaluacion,

@@ -13,20 +13,29 @@ export interface Feriado {
   id: string;
 }
 
+const memoryCache = new Map<number, Feriado[]>();
+
 /**
  * Obtiene los feriados del año indicado.
  * Si se llama desde el cliente, usa nuestro Proxy /api/feriados.
  * Si se llama desde el servidor, consulta la API externa con fallback local.
+ * Utiliza memoryCache para respuesta instantánea en múltiples consultas.
  */
 export async function getFeriados(anio: number): Promise<Feriado[]> {
+  if (memoryCache.has(anio)) {
+    return memoryCache.get(anio)!;
+  }
+
   try {
     const isClient = typeof window !== "undefined";
-    
+
     // Si estamos en el cliente, usamos el proxy interno para evitar CORS
     if (isClient) {
       const response = await fetch(`/api/feriados?anio=${anio}`);
       if (!response.ok) return feriadosLocales as Feriado[];
-      return await response.json();
+      const data = await response.json();
+      memoryCache.set(anio, data);
+      return data;
     }
 
     // Si estamos en el servidor (ej: Tiza), consultamos la API externa
@@ -35,15 +44,19 @@ export async function getFeriados(anio: number): Promise<Feriado[]> {
       `https://nolaborables.com.ar/api/v2/feriados/${anio}?incluir=opcional`,
       {
         next: { revalidate: 86400 },
-        signal: AbortSignal.timeout(2000) 
+        signal: AbortSignal.timeout(2000),
       }
     );
 
     if (!response.ok) throw new Error("API externa falló");
-    return await response.json();
+    const data = await response.json();
+    memoryCache.set(anio, data);
+    return data;
   } catch (error) {
     console.warn("⚠️ Fallo al obtener feriados externos, usando fallback local:", error);
-    return feriadosLocales as Feriado[];
+    const data = feriadosLocales as Feriado[];
+    memoryCache.set(anio, data);
+    return data;
   }
 }
 

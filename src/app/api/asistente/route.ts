@@ -6,7 +6,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plan";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type FunctionDeclaration } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 import { buildAsistenteSystemPrompt } from "@/lib/asistente/system-prompt";
@@ -62,16 +62,11 @@ export async function POST(request: Request) {
   try {
     // 4. Iniciar modelo con tools
     const genAI = getGenAI();
-    
-    // Obtener feriados para el prompt
-    const { getFeriados, formatFeriadoDate } = await import("@/lib/utils/feriados");
-    const feriadosRaw = await getFeriados(new Date().getFullYear());
-    const feriadosList = feriadosRaw.map(f => `${formatFeriadoDate(f, new Date().getFullYear())}: ${f.motivo} (${f.tipo})`);
 
     const model = genAI.getGenerativeModel({
       model: "gemini-3.1-flash-lite", // Usando Gemini 3.1 Flash Lite (15 RPM)
-      systemInstruction: buildAsistenteSystemPrompt(feriadosList),
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS as any }],
+      systemInstruction: buildAsistenteSystemPrompt(),
+      tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 1024,
@@ -132,7 +127,7 @@ export async function POST(request: Request) {
     let replyText = "";
     try {
       replyText = result.response.text();
-    } catch (e) {
+    } catch {
       if (iterations >= MAX_TOOL_ITERATIONS) {
         replyText = "Hice varias cosas, pero el proceso fue largo. Por favor revisá si todo quedó bien 😅";
       } else {
@@ -145,7 +140,7 @@ export async function POST(request: Request) {
       history: updatedHistory,
       actions: actionsTaken,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ Error en agente Tiza:", error);
     return NextResponse.json(
       {

@@ -1,12 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Grado, EjercicioGenerado } from "@/lib/types/database";
+import type { EjercicioGenerado } from "@/lib/types/database";
 
 export async function createClaseAndVinculo(data: {
   temas: string[];
   materia: string;
-  grado_target: Grado;
+  nivel_target: string;
   alumno_id: string;
   ejercicios_generados: EjercicioGenerado[];
 }) {
@@ -63,7 +63,7 @@ export async function createClaseAndVinculo(data: {
       maestra_id: user.id,
       tema: primaryTemaNombre,
       materia: data.materia,
-      grado_target: data.grado_target,
+      grado_target: data.nivel_target,
       ejercicio_generado: data.ejercicios_generados as any,
       tema_id: primaryTemaId,
     })

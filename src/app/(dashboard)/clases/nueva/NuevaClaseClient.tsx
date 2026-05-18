@@ -5,7 +5,7 @@ import PasoTema, { type AlumnoBasico } from "@/components/cierre-clase/PasoTema"
 import PasoEjercicio from "@/components/cierre-clase/PasoEjercicio";
 import PasoAutoevaluacion from "@/components/cierre-clase/PasoAutoevaluacion";
 import PasoResumen from "@/components/cierre-clase/PasoResumen";
-import type { EjercicioGenerado, Materia, Grado, HitoAprendizaje, EjercicioResultado } from "@/lib/types/database";
+import type { EjercicioGenerado, Materia, HitoAprendizaje, EjercicioResultado } from "@/lib/types/database";
 import type { MateriaOption } from "@/lib/materias";
 import { Sparkles, Check } from "lucide-react";
 
@@ -47,7 +47,7 @@ export default function NuevaClaseClient({
 
   const handlePasoTemaSubmit = async (data: {
     temas: string[];
-    grado_target: Grado;
+    nivel_target: string;
     alumno_id: string;
   }) => {
     try {
@@ -57,7 +57,7 @@ export default function NuevaClaseClient({
         body: JSON.stringify({
           tema: data.temas.join(", "),
           materia: "otro",
-          grado_target: data.grado_target,
+          nivel_target: data.nivel_target,
           alumno_ids: [data.alumno_id],
         }),
       });
@@ -76,7 +76,7 @@ export default function NuevaClaseClient({
         const { claseId, claseAlumnoId } = await createClaseAndVinculo({
           temas: data.temas,
           materia: "otro",
-          grado_target: data.grado_target,
+          nivel_target: data.nivel_target,
           alumno_id: data.alumno_id,
           ejercicios_generados: result.ejercicios,
         });

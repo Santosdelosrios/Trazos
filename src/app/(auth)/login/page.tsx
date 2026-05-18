@@ -17,7 +17,7 @@ export default async function LoginPage({
           Trazos
         </h1>
         <p className="mt-2 text-sm text-surface-500 font-medium">
-          El cuaderno digital de la maestra ✏️
+          El cuaderno digital del profe ✏️
         </p>
       </div>
 

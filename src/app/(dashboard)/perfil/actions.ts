@@ -36,3 +36,25 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/perfil");
   redirect("/perfil?success=true");
 }
+
+export async function deleteAccount() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { error } = await supabase.rpc("delete_my_account");
+
+  if (error) {
+    console.error("Error deleting account:", error);
+    redirect("/perfil?error=" + encodeURIComponent("No se pudo eliminar la cuenta. Error: " + error.message));
+  }
+
+  await supabase.auth.signOut();
+  redirect("/login");
+}

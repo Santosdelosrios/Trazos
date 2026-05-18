@@ -4,6 +4,8 @@ import Link from "next/link";
 import { createAlumno, deleteAlumno } from "./actions";
 import { UserPlus, Trash2, GraduationCap, Plus, Crown } from "lucide-react";
 import { getPlan, PLAN_LIMITS, type Plan } from "@/lib/plan";
+import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 export const metadata = {
   title: "Mis Alumnos | Trazos",
@@ -40,22 +42,19 @@ export default async function AlumnosPage() {
 
   // Fetch ALL balances in a single batch call (avoids N+1 queries)
   let saldosMap: Record<string, number> = {};
-  
+
   if (alumnosRaw && alumnosRaw.length > 0) {
-    const alumnoIds = alumnosRaw.map(a => a.id);
-    
-    // Try batch RPC first, fall back to parallel individual calls
-    const saldoPromises = alumnoIds.map(id =>
-      supabase.rpc("calcular_saldo_alumno", {
-        p_alumno_id: id,
-        p_maestra_id: user.id,
-      }).then(({ data }) => ({ id, saldo: data?.[0]?.saldo_pendiente || 0 }))
-    );
-    
-    const saldoResults = await Promise.all(saldoPromises);
-    saldoResults.forEach(({ id, saldo }) => {
-      saldosMap[id] = saldo;
+    const { data: saldosBatch } = await supabase.rpc("calcular_saldos_maestra", {
+      p_maestra_id: user.id,
     });
+    
+    if (saldosBatch && Array.isArray(saldosBatch)) {
+      saldosBatch.forEach((row: any) => {
+        if (row && row.alumno_id) {
+          saldosMap[row.alumno_id] = Number(row.saldo_pendiente) || 0;
+        }
+      });
+    }
   }
 
   const alumnos = (alumnosRaw || []).map(alumno => ({
@@ -126,22 +125,10 @@ export default async function AlumnosPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-surface-700 mb-1">
-                  Grado escolar
+                <label className="block text-sm font-medium text-surface-700 mb-2">
+                  Nivel educativo
                 </label>
-                <select
-                  name="grado"
-                  required
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                >
-                  <option value="1">1° grado</option>
-                  <option value="2">2° grado</option>
-                  <option value="3">3° grado</option>
-                  <option value="4">4° grado</option>
-                  <option value="5">5° grado</option>
-                  <option value="6">6° grado</option>
-                  <option value="7">7° grado</option>
-                </select>
+                <NivelEducativoSelector name="grado" />
               </div>
 
               <div>
@@ -156,13 +143,13 @@ export default async function AlumnosPage() {
                 />
               </div>
 
-              <button
-                type="submit"
+              <SubmitButton
                 disabled={atLimit}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full mt-2"
+                icon={<UserPlus size={16} />}
               >
-                <UserPlus size={16} /> {atLimit ? "Límite alcanzado" : "Guardar alumno"}
-              </button>
+                {atLimit ? "Límite alcanzado" : "Guardar alumno"}
+              </SubmitButton>
             </form>
           </div>
         </div>
@@ -186,7 +173,7 @@ export default async function AlumnosPage() {
                             </h3>
                             <div className="flex items-center space-x-2 text-sm text-surface-500">
                               <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
-                                {alumno.grado}° Grado
+                                {alumno.grado}
                               </span>
                               {alumno.saldo_pendiente > 0 ? (
                                 <span className="inline-flex items-center rounded-md bg-danger-50 px-2 py-1 text-xs font-bold text-danger-600 border border-danger-200">
@@ -207,7 +194,7 @@ export default async function AlumnosPage() {
                         </p>
                       )}
                     </Link>
-                    
+
                     {/* Botón de eliminar (posicionado absoluto para no interferir con el Link) */}
                     <form action={async () => {
                       "use server";

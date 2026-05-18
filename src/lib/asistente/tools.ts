@@ -11,7 +11,7 @@ export const TOOL_DECLARATIONS = [
   {
     name: "buscar_alumno",
     description:
-      "Busca alumnos de la maestra por nombre o apellido (búsqueda parcial, case-insensitive). Devuelve hasta 5 resultados con id, nombre, apellido y grado. SIEMPRE usá esta función antes de cualquier acción que necesite un alumno.",
+      "Busca alumnos del docente por nombre o apellido (búsqueda parcial, case-insensitive). Devuelve hasta 5 resultados con id, nombre, apellido y nivel educativo. SIEMPRE usá esta función antes de cualquier acción que necesite un alumno.",
     parameters: {
       type: "object",
       properties: {
@@ -169,4 +169,20 @@ export const TOOL_DECLARATIONS = [
       required: ["alumno_id", "mes", "anio"],
     },
   },
+  {
+    name: "consultar_feriados",
+    description:
+      "Consulta la lista oficial de feriados de Argentina para un año específico. SIEMPRE usá esta función si la maestra te pregunta por feriados, días no laborables o antes de confirmar fechas en el calendario.",
+    parameters: {
+      type: "object",
+      properties: {
+        anio: {
+          type: "number",
+          description: "Año a consultar (ej. 2026).",
+        },
+      },
+      required: ["anio"],
+    },
+  },
 ] as const;
+

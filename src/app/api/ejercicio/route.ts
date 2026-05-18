@@ -8,14 +8,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Validar input (solo necesitamos tema, materia y grado para generar)
-    const { tema, materia, grado_target } = PasoTemaSchema.pick({
+    // Validar input (solo necesitamos tema, materia y nivel para generar)
+    const { tema, materia, nivel_target } = PasoTemaSchema.pick({
       tema: true,
       materia: true,
-      grado_target: true,
+      nivel_target: true,
     }).parse(body);
 
-    const ejercicios = await generarEjercicios(tema, grado_target, materia);
+    const ejercicios = await generarEjercicios(tema, nivel_target, materia);
 
     return NextResponse.json({ ejercicios }, { status: 200 });
   } catch (error) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && error.name === "ZodError") {
       return NextResponse.json(
-        { error: "Datos inválidos. Revisá el tema, materia y grado." },
+        { error: "Datos inválidos. Revisá el tema, materia y nivel." },
         { status: 400 }
       );
     }

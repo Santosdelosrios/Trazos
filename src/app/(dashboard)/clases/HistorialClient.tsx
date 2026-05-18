@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { eliminarClase } from "./actions";
-import { Search, Trash2, ChevronRight, Info } from "lucide-react";
+import { Search, Trash2, ChevronRight, Info, Loader2 } from "lucide-react";
 
 interface HistorialItem {
   id: string; // id de clase_alumnos
@@ -97,6 +97,7 @@ export default function HistorialClient({ data }: HistorialClientProps) {
               ) : (
                 filteredData.map((item) => {
                   const date = item.respondido_at ? new Date(item.respondido_at) : new Date(item.clases.fecha);
+                  const isExpress = item.nota === null && !item.respondido_at;
                   return (
                     <tr key={item.id} className="hover:bg-surface-50/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -118,7 +119,11 @@ export default function HistorialClient({ data }: HistorialClientProps) {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {item.nota !== null ? (
+                        {isExpress ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg bg-surface-100 px-2.5 py-1 text-xs font-bold text-surface-600 border border-surface-200">
+                            ⚡ Express
+                          </span>
+                        ) : item.nota !== null ? (
                           <span className={cn(
                             "inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold",
                             item.nota >= 4 ? "bg-success-100 text-success-700" :
@@ -132,7 +137,7 @@ export default function HistorialClient({ data }: HistorialClientProps) {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center font-medium text-surface-500">
-                        {item.total_correctas}/3
+                        {isExpress ? "—" : `${item.total_correctas}/3`}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-3">
@@ -167,7 +172,7 @@ export default function HistorialClient({ data }: HistorialClientProps) {
                                   isPending && "opacity-50 cursor-not-allowed"
                                 )}
                               >
-                                Sí
+                                {isPending ? <Loader2 size={12} className="animate-spin" /> : "Sí"}
                               </button>
                               <button
                                 disabled={isPending}

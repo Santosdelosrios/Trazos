@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FileDown, Printer, ArrowLeft, Sparkles, Crown, BookOpen } from "lucide-react";
 
 interface ReporteData {
-  alumno: { nombre: string; apellido: string; grado: number };
+  alumno: { nombre: string; apellido: string; grado: string };
   maestra: string;
   fecha: string;
   stats: {
@@ -141,7 +141,7 @@ export default function ReporteButton({ alumnoId, isPremium }: { alumnoId: strin
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1">Alumno / Alumna</p>
               <p className="text-xl font-bold text-surface-900">{reporteData.alumno.nombre} {reporteData.alumno.apellido}</p>
-              <p className="text-sm text-surface-600 font-medium">{reporteData.alumno.grado}° Grado</p>
+              <p className="text-sm text-surface-600 font-medium">{reporteData.alumno.grado}</p>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-black uppercase tracking-widest text-surface-400 mb-1">Desempeño General</p>

@@ -33,6 +33,8 @@ export async function executeTool(
         return await resumenFinanciero(supabase, maestraId);
       case "organizar_cobro_mes":
         return await organizarCobroMes(supabase, maestraId, args);
+      case "consultar_feriados":
+        return await consultarFeriadosTool(args.anio as number);
       default:
         return {
           success: false,
@@ -318,14 +320,17 @@ async function verAgendaDia(
     return { success: false, data: { error: error.message }, summary: "Error consultando agenda" };
   }
 
-  const clases = (data || []).map((item) => ({
-    hora: item.hora,
-    alumno: item.alumnos
-      ? `${(item.alumnos as any).nombre} ${(item.alumnos as any).apellido}`
-      : "Sin alumno",
-    estado: item.estado,
-    duracion: item.duracion_estimada,
-  }));
+  const clases = (data || []).map((item) => {
+    const alumnoObj = item.alumnos as { nombre?: string; apellido?: string } | null;
+    return {
+      hora: item.hora,
+      alumno: alumnoObj
+        ? `${alumnoObj.nombre || ""} ${alumnoObj.apellido || ""}`.trim()
+        : "Sin alumno",
+      estado: item.estado,
+      duracion: item.duracion_estimada,
+    };
+  });
 
   return {
     success: true,
@@ -478,3 +483,16 @@ async function organizarCobroMes(
     summary: `${totalClasesMes} clases en ${nombreMes}, tarifa $${tarifaHora.toLocaleString("es-AR")}, total estimado $${totalEstimado.toLocaleString("es-AR")}`,
   };
 }
+
+async function consultarFeriadosTool(anio: number): Promise<ToolResult> {
+  const { getFeriados, formatFeriadoDate } = await import("@/lib/utils/feriados");
+  const feriados = await getFeriados(anio);
+  const feriadosList = feriados.map(f => `${formatFeriadoDate(f, anio)}: ${f.motivo} (${f.tipo})`);
+
+  return {
+    success: true,
+    data: { anio, feriados: feriadosList, total: feriadosList.length },
+    summary: `Consulté ${feriadosList.length} feriados de Argentina para el año ${anio}.`,
+  };
+}
+

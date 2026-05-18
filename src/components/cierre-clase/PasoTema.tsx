@@ -2,10 +2,10 @@
 
 import { useState, useCallback } from "react";
 import {
-  type Grado,
+  type Nivel,
 } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
-import { FileText, X, AlertCircle, BookOpen, GraduationCap, Sparkles, PenTool } from "lucide-react";
+import { FileText, X, AlertCircle, BookOpen, GraduationCap, Sparkles, PenTool, Loader2 } from "lucide-react";
 
 // ============================================================
 // Tipos internos del componente
@@ -15,7 +15,7 @@ export interface AlumnoBasico {
   id: string;
   nombre: string;
   apellido: string;
-  grado: Grado;
+  grado: Nivel;
 }
 
 interface PasoTemaData {
@@ -25,10 +25,10 @@ interface PasoTemaData {
 
 interface PasoTemaProps {
   alumnos: AlumnoBasico[];
-  /** Callback cuando la maestra completa el paso y quiere generar el ejercicio */
+  /** Callback cuando el/la profe completa el paso y quiere generar el ejercicio */
   onSubmit?: (data: {
     temas: string[];
-    grado_target: Grado;
+    nivel_target: string;
     alumno_id: string;
   }) => Promise<void>;
   initialAlumnoId?: string;
@@ -103,7 +103,7 @@ export default function PasoTema({
         const alumno = alumnos.find((a) => a.id === data.alumno_id);
         await onSubmit({
           temas: data.temas,
-          grado_target: alumno!.grado,
+          nivel_target: String(alumno!.grado),
           alumno_id: data.alumno_id!,
         });
       } catch (error) {
@@ -332,8 +332,8 @@ export default function PasoTema({
         >
           {isGenerating ? (
             <>
-              <PenTool size={16} className="animate-wiggle" />
-              Escribiendo tarea...
+              <Loader2 size={16} className="animate-spin" />
+              Generando con IA...
             </>
           ) : (
             <>

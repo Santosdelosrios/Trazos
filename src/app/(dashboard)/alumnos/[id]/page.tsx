@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
 import { getPlan } from "@/lib/plan";
 import ReporteButton from "@/components/premium/ReporteButton";
+import EditarAlumnoModal from "./EditarAlumnoModal";
 
 export const metadata = {
   title: "Perfil del Alumno | Trazos",
@@ -142,19 +143,30 @@ export default async function AlumnoPerfilPage({
             </h1>
             <p className="text-surface-600 flex items-center gap-2 mt-1">
               <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
-                {alumno.grado}° Grado
+                {alumno.grado}
               </span>
               {alumno.notas && <span>· {alumno.notas}</span>}
             </p>
           </div>
 
-          <Link
-            href={`/clases/nueva?alumnoId=${alumno.id}`}
-            className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-all active:scale-95"
-          >
-            <Sparkles size={16} />
-            Cerrar Clase
-          </Link>
+          <div className="flex items-center gap-3">
+            <EditarAlumnoModal
+              alumno={{
+                id: alumno.id,
+                nombre: alumno.nombre,
+                apellido: alumno.apellido,
+                grado: alumno.grado,
+                notas: alumno.notas,
+              }}
+            />
+            <Link
+              href={`/clases/nueva?alumnoId=${alumno.id}`}
+              className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-all active:scale-95"
+            >
+              <Sparkles size={16} />
+              Cerrar Clase
+            </Link>
+          </div>
         </div>
       </div>
 

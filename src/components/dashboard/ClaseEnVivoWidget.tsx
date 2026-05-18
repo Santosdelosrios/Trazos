@@ -2,10 +2,23 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Rocket, Sparkles, ChevronRight } from "lucide-react";
+import { Rocket, Sparkles, ChevronRight, Zap, CheckCircle2 } from "lucide-react";
+import { cerrarClaseExpress } from "@/app/(dashboard)/agenda/actions";
 
 export default function ClaseEnVivoWidget({ proximasClases }: { proximasClases: any[] }) {
   const [claseEnVivo, setClaseEnVivo] = useState<any>(null);
+  const [isClosingExpress, setIsClosingExpress] = useState(false);
+
+  const handleExpressClose = async () => {
+    try {
+      setIsClosingExpress(true);
+      await cerrarClaseExpress(claseEnVivo.id);
+      setClaseEnVivo(null);
+    } catch (e) {
+      console.error(e);
+      setIsClosingExpress(false);
+    }
+  };
 
   useEffect(() => {
     const checkLive = () => {
@@ -57,14 +70,32 @@ export default function ClaseEnVivoWidget({ proximasClases }: { proximasClases: 
           </div>
         </div>
         
-        <Link
-          href={`/clases/nueva?alumnoId=${claseEnVivo.alumno_id}&tema=${encodeURIComponent(claseEnVivo.tema_previsto || "")}&agendaId=${claseEnVivo.id}`}
-          className="flex items-center justify-center gap-3 rounded-2xl bg-surface-900 px-8 py-4 text-sm font-black text-white shadow-xl hover:bg-surface-800 transition-all hover:scale-[1.02] active:scale-95 text-center"
-        >
-          <Sparkles size={18} />
-          Finalizar clase y tomar quiz
-          <ChevronRight size={18} />
-        </Link>
+        <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-2 shrink-0 w-full md:w-auto">
+          <button
+            onClick={handleExpressClose}
+            disabled={isClosingExpress}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-surface-900 px-6 py-3.5 text-sm font-black text-white shadow-lg hover:bg-surface-800 transition-all active:scale-95 disabled:opacity-50 w-full"
+          >
+            {isClosingExpress ? (
+              <>
+                <CheckCircle2 size={18} className="animate-pulse text-success-400" />
+                Cerrando...
+              </>
+            ) : (
+              <>
+                <Zap size={18} className="text-warning-400" />
+                Cierre Rápido
+              </>
+            )}
+          </button>
+          <Link
+            href={`/clases/nueva?alumnoId=${claseEnVivo.alumno_id}&tema=${encodeURIComponent(claseEnVivo.tema_previsto || "")}&agendaId=${claseEnVivo.id}`}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-primary-50 border border-primary-200 px-6 py-3.5 text-sm font-bold text-primary-700 hover:bg-primary-100 transition-all active:scale-95 w-full"
+          >
+            <Sparkles size={18} />
+            Cierre Pedagógico
+          </Link>
+        </div>
       </div>
     </div>
   );

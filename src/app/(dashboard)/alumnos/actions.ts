@@ -67,3 +67,39 @@ export async function deleteAlumno(id: string) {
   revalidatePath("/alumnos");
   return { success: true };
 }
+
+export async function updateAlumno(id: string, formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("No autenticado");
+  }
+
+  const nombre = formData.get("nombre") as string;
+  const apellido = formData.get("apellido") as string;
+  const grado = formData.get("grado") as string;
+  const notas = formData.get("notas") as string;
+
+  const { error } = await supabase
+    .from("alumnos")
+    .update({
+      nombre,
+      apellido,
+      grado,
+      notas: notas || null,
+    })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) {
+    throw new Error("Error al actualizar alumno: " + error.message);
+  }
+
+  revalidatePath(`/alumnos/${id}`);
+  revalidatePath("/alumnos");
+  return { success: true };
+}

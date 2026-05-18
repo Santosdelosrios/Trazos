@@ -17,7 +17,7 @@ export default async function RegistroPage({
           Trazos
         </h1>
         <p className="mt-2 text-sm text-surface-500 font-medium">
-          Sumate a la comunidad de maestras 🌱
+          Sumate a la comunidad de profes 🌱
         </p>
       </div>
 

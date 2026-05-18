@@ -88,7 +88,7 @@ export async function GET(
 
   return NextResponse.json({
     alumno,
-    maestra: maestraData?.nombre || "Maestra",
+    maestra: maestraData?.nombre || "Profe",
     fecha: new Date().toLocaleDateString("es-AR", { month: "long", year: "numeric" }),
     stats: {
       totalClases: clases.length,
