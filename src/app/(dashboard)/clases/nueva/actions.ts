@@ -136,7 +136,7 @@ export async function registrarCobroClase(data: {
 
   // 3. Registrar según modelo
   switch (modelo_cobro) {
-    case "por_clase":
+    case "por_clase": {
       const { error } = await supabase.from("pagos").insert({
         maestra_id: user.id,
         alumno_id: data.alumno_id,
@@ -147,6 +147,7 @@ export async function registrarCobroClase(data: {
       });
       if (error) throw new Error("Error al registrar cobro: " + error.message);
       break;
+    }
 
     case "bolsa_creditos":
       await supabase.from("movimientos_cuenta").insert({

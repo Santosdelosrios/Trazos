@@ -15,7 +15,7 @@ interface PasoResumenProps {
   modeloCobro?: ModeloCobro;
   initialMonto?: number;
   initialDuracion?: number;
-  onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => void;
+  onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => Promise<void>;
 }
 
 export default function PasoResumen({
@@ -197,10 +197,14 @@ export default function PasoResumen({
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   disabled={!monto || cobroStatus === "saving"}
-                  onClick={() => {
+                  onClick={async () => {
                     setCobroStatus("saving");
-                    onRegistrarCobro(Number(monto), duracionReal, "pendiente");
-                    setTimeout(() => setCobroStatus("saved"), 800);
+                    try {
+                      await onRegistrarCobro(Number(monto), duracionReal, "pendiente");
+                      setCobroStatus("saved");
+                    } catch {
+                      setCobroStatus("none");
+                    }
                   }}
                   className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-2.5 text-sm font-bold text-warning-700 hover:bg-warning-100 transition-colors disabled:opacity-50"
                 >
@@ -208,10 +212,14 @@ export default function PasoResumen({
                 </button>
                 <button
                   disabled={!monto || cobroStatus === "saving"}
-                  onClick={() => {
+                  onClick={async () => {
                     setCobroStatus("saving");
-                    onRegistrarCobro(Number(monto), duracionReal, "pagado");
-                    setTimeout(() => setCobroStatus("saved"), 800);
+                    try {
+                      await onRegistrarCobro(Number(monto), duracionReal, "pagado");
+                      setCobroStatus("saved");
+                    } catch {
+                      setCobroStatus("none");
+                    }
                   }}
                   className="rounded-xl border border-success-200 bg-success-50 px-4 py-2.5 text-sm font-bold text-success-700 hover:bg-success-100 transition-colors disabled:opacity-50"
                 >

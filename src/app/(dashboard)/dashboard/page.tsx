@@ -6,6 +6,7 @@ import AgendaDiaWidget from "@/components/dashboard/AgendaDiaWidget";
 import TutorialPrimerosPasos from "@/components/dashboard/TutorialPrimerosPasos";
 import ClaseEnVivoWidget from "@/components/dashboard/ClaseEnVivoWidget";
 import type { ResumenFinancieroMes } from "@/lib/types/database";
+import { getTodayKeyAR } from "@/lib/utils/fechas";
 import { 
   GraduationCap, 
   BookOpen, 
@@ -40,7 +41,7 @@ export default async function DashboardPage() {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const todayStr = new Date().toLocaleDateString("en-CA");
+  const todayStr = getTodayKeyAR();
 
   // Parallelize all data fetching
   const [

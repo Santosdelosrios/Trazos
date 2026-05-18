@@ -107,6 +107,12 @@ export default function TizaChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<GeminiHistoryEntry[]>([]);
+  // Ref espejo de `history` para que `sendMessage` siempre vea el valor más
+  // reciente sin reinstanciarse en cada actualización.
+  const historyRef = useRef(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -142,7 +148,7 @@ export default function TizaChat() {
       const res = await fetch("/api/asistente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text.trim(), history }),
+        body: JSON.stringify({ message: text.trim(), history: historyRef.current }),
       });
 
       const data = await res.json();
@@ -179,7 +185,7 @@ export default function TizaChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [history, isLoading]);
+  }, [isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
