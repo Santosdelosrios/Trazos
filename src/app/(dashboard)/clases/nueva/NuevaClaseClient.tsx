@@ -211,16 +211,6 @@ export default function NuevaClaseClient({
     }
   };
 
-  const handleRegistrarCobro = async (monto: number, estado: "pagado" | "pendiente") => {
-    if (!claseIdGuardada) return;
-    
-    // El alumnoId lo podemos sacar de initialAlumnoId o formData, 
-    // pero lo mejor es extraerlo cuando guardamos.
-    // Como workaround rápido, the first step already requires alumno_id but we don't save it in state.
-    // Wait, initialAlumnoId might be empty if they select it manually.
-    // Let's add a quick fix by storing it in a ref or we can find it.
-  };
-
   return (
     <div className="animate-fade-in-up">
       {/* Page header */}
@@ -315,16 +305,16 @@ export default function NuevaClaseClient({
               modeloCobro={alumnoSeleccionado?.modelo_cobro || "por_clase"}
               initialMonto={alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? undefined}
               initialDuracion={initialDuracion}
-              onRegistrarCobro={(monto, duracion, estado) => {
+              onRegistrarCobro={async (monto, duracion, estado) => {
                 if (claseIdGuardada && selectedAlumnoId) {
-                  const { registrarCobroClase } = require("./actions");
-                  registrarCobroClase({
+                  const { registrarCobroClase } = await import("./actions");
+                  await registrarCobroClase({
                     clase_id: claseIdGuardada,
                     alumno_id: selectedAlumnoId,
                     monto,
                     duracion_real: duracion,
-                    estado
-                  }).catch(console.error);
+                    estado,
+                  });
                 }
               }}
             />
