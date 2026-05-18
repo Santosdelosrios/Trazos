@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { AgendaItem } from "@/lib/types/database";
 import { Coffee, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   type Modifier,
 } from "@dnd-kit/core";
 import dynamic from "next/dynamic";
+import { formatDateKey as formatDateStr, parseDateKey as parseDateStr } from "@/lib/utils/fechas";
 
 const OpcionesClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/OpcionesClaseModal"), { ssr: false });
 const EditarClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/EditarClaseModal"), { ssr: false });
@@ -31,18 +32,6 @@ const snapToGridModifier: Modifier = ({ transform }) => {
     ...transform,
     y: Math.round(transform.y / 20) * 20, // 20px = 15 mins
   };
-};
-
-const formatDateStr = (date: Date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
-const parseDateStr = (str: string) => {
-  const [y, m, d] = str.split("-").map(Number);
-  return new Date(y, m - 1, d);
 };
 
 function ClaseCard({
@@ -127,16 +116,26 @@ function ResizeHandle({ id, item }: { id: string; item: AgendaItem }) {
   );
 }
 
-function DraggableClase({ item, onClick, heightDelta = 0 }: any) {
+interface DraggableClaseProps {
+  item: AgendaItem;
+  onSelect: (item: AgendaItem) => void;
+  heightDelta?: number;
+}
+
+const DraggableClase = memo(function DraggableClase({
+  item,
+  onSelect,
+  heightDelta = 0,
+}: DraggableClaseProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: item.id,
     data: item,
-    disabled: heightDelta !== 0
+    disabled: heightDelta !== 0,
   });
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
 
   return (
     <>
@@ -148,12 +147,12 @@ function DraggableClase({ item, onClick, heightDelta = 0 }: any) {
         listeners={listeners}
         attributes={attributes}
         setNodeRef={setNodeRef}
-        onClick={onClick}
+        onClick={() => onSelect(item)}
         heightDelta={heightDelta}
       />
     </>
   );
-}
+});
 
 function DroppableColumna({ dateKey, isToday, children }: { dateKey: string; isToday: boolean; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -400,10 +399,10 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
               {/* Columna Principal */}
               <DroppableColumna dateKey={selectedDateStr} isToday={isToday}>
                 {todaysItems.map((item) => (
-                  <DraggableClase 
-                    key={item.id} 
-                    item={item} 
-                    onClick={() => setSelectionItem(item)}
+                  <DraggableClase
+                    key={item.id}
+                    item={item}
+                    onSelect={setSelectionItem}
                     heightDelta={resizingId === item.id ? resizingDeltaY : 0}
                   />
                 ))}

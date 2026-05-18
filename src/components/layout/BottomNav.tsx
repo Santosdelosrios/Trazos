@@ -56,21 +56,22 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors",
-                isActive
-                  ? "text-primary-600"
-                  : "text-surface-400"
+                "relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-xl px-3 py-2 transition-colors",
+                isActive ? "text-primary-600" : "text-surface-400"
               )}
+              aria-current={isActive ? "page" : undefined}
             >
               <item.icon
                 size={22}
                 strokeWidth={isActive ? 2.5 : 1.8}
                 className="transition-transform duration-200"
               />
-              <span className={cn(
-                "text-[10px] leading-tight",
-                isActive ? "font-bold" : "font-medium"
-              )}>
+              <span
+                className={cn(
+                  "text-[10px] leading-tight",
+                  isActive ? "font-bold" : "font-medium"
+                )}
+              >
                 {item.label}
               </span>
               {isActive && (

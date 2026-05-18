@@ -35,40 +35,17 @@ interface AgendaClientProps {
 }
 import dynamic from "next/dynamic";
 import { getFeriados, formatFeriadoDate, type Feriado } from "@/lib/utils/feriados";
+import {
+  DIAS_SEMANA as DIAS,
+  getMonday,
+  getWeekDays,
+  isSameDay,
+  formatDateKey,
+} from "@/lib/utils/fechas";
 
 const PlanificarModal = dynamic(() => import("./modals/PlanificarModal"), { ssr: false });
 const OpcionesClaseModal = dynamic(() => import("./modals/OpcionesClaseModal"), { ssr: false });
 const EditarClaseModal = dynamic(() => import("./modals/EditarClaseModal"), { ssr: false });
-
-// --- Helpers ---
-const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-
-function getMonday(d: Date): Date {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function getWeekDays(monday: Date): Date[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
-  });
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-}
-
-function formatDateKey(d: Date): string {
-  return d.toISOString().split("T")[0];
-}
 
 // --- Modifiers ---
 const snapToGridModifier: Modifier = ({ transform }) => {
@@ -287,9 +264,12 @@ function DroppableColumna({ date, isToday, isPast, children }: {
 
 // --- Main Component ---
 export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
+  // `today` y `currentMonday` se inicializan con una fecha epoch determinista
+  // para que SSR y primer render del cliente coincidan; el `useEffect`
+  // posterior los reemplaza por la fecha real una vez montado.
   const [mounted, setMounted] = useState(false);
-  const [today, setToday] = useState<Date>(() => new Date("2026-01-01T00:00:00"));
-  const [currentMonday, setCurrentMonday] = useState<Date>(() => getMonday(new Date("2026-01-01T00:00:00")));
+  const [today, setToday] = useState<Date>(() => new Date(0));
+  const [currentMonday, setCurrentMonday] = useState<Date>(() => getMonday(new Date(0)));
   const [modalOpen, setModalOpen] = useState(false);
   const [prefillDate, setPrefillDate] = useState<string | undefined>();
   const [showCerradas, setShowCerradas] = useState(false);
@@ -552,9 +532,9 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
         modifiers={[snapToGridModifier]}
       >
         <div className="rounded-3xl border border-surface-200 bg-white shadow-xl overflow-hidden">
-          <div className="flex border-b border-surface-100 bg-surface-50/50">
+          <div className="flex border-b border-surface-100 bg-surface-50/50 min-w-[560px] md:min-w-[800px]">
             {/* Hour axis header spacer */}
-            <div className="w-16 border-r border-surface-100" />
+            <div className="w-12 md:w-16 border-r border-surface-100 flex-none" />
             <div className="flex-1 grid grid-cols-7">
               {weekDays.map((date, i) => {
                 const isToday = isSameDay(date, today);
@@ -586,9 +566,9 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             </div>
           </div>
 
-          <div className="flex relative overflow-y-auto max-h-[700px] custom-scrollbar">
+          <div className="flex relative overflow-y-auto overflow-x-auto max-h-[700px] custom-scrollbar">
             {/* Hour Axis */}
-            <div className="w-16 flex-none bg-surface-50/30 border-r border-surface-100 relative">
+            <div className="w-12 md:w-16 flex-none bg-surface-50/30 border-r border-surface-100 sticky left-0 z-10">
               {Array.from({ length: 15 }).map((_, i) => (
                 <div key={i} className="h-20 border-b border-surface-100/50 relative">
                   <span className="absolute -top-2.5 right-2 text-[10px] font-bold text-surface-400">
@@ -599,7 +579,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             </div>
 
             {/* Columns Grid */}
-            <div className="flex-1 grid grid-cols-7 min-w-[800px]">
+            <div className="flex-1 grid grid-cols-7 min-w-[560px] md:min-w-[800px]">
               {weekDays.map((date) => {
                 const key = formatDateKey(date);
                 const items = itemsByDate[key] || [];
