@@ -302,3 +302,29 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* ============================================================
+   Custom Scrollbars
+   ============================================================ */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-surface-50);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-surface-300);
+  border-radius: 9999px;
+  border: 2px solid var(--color-surface-50);
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-400);
+}
+
+

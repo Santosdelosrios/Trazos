@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import {
   type Nivel,
+  type ModeloCobro,
 } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import { FileText, X, AlertCircle, BookOpen, GraduationCap, Sparkles, PenTool, Loader2 } from "lucide-react";
@@ -16,6 +17,8 @@ export interface AlumnoBasico {
   nombre: string;
   apellido: string;
   grado: Nivel;
+  modelo_cobro?: ModeloCobro;
+  tarifa_override?: number | null;
 }
 
 interface PasoTemaData {

@@ -125,15 +125,55 @@ export async function registrarCobroClase(data: {
     .update({ duracion_real: data.duracion_real })
     .eq("id", data.clase_id);
 
-  // 2. Crear el pago
-  const { error } = await supabase.from("pagos").insert({
-    maestra_id: user.id,
-    alumno_id: data.alumno_id,
-    clase_id: data.clase_id,
-    monto: data.monto,
-    estado: data.estado,
-    fecha_pago: data.estado === "pagado" ? new Date().toISOString().split("T")[0] : null,
-  });
+  // 2. Obtener modelo de cobro del alumno
+  const { data: alumno } = await supabase
+    .from("alumnos")
+    .select("modelo_cobro")
+    .eq("id", data.alumno_id)
+    .single();
 
-  if (error) throw new Error("Error al registrar cobro: " + error.message);
+  const modelo_cobro = alumno?.modelo_cobro || "por_clase";
+
+  // 3. Registrar según modelo
+  switch (modelo_cobro) {
+    case "por_clase":
+      const { error } = await supabase.from("pagos").insert({
+        maestra_id: user.id,
+        alumno_id: data.alumno_id,
+        clase_id: data.clase_id,
+        monto: data.monto,
+        estado: data.estado,
+        fecha_pago: data.estado === "pagado" ? new Date().toISOString().split("T")[0] : null,
+      });
+      if (error) throw new Error("Error al registrar cobro: " + error.message);
+      break;
+
+    case "bolsa_creditos":
+      await supabase.from("movimientos_cuenta").insert({
+        maestra_id: user.id,
+        alumno_id: data.alumno_id,
+        tipo_movimiento: "clase_descontada",
+        monto: 0,
+        creditos: -1,
+        referencia_id: data.clase_id,
+        descripcion: "Clase cerrada con evaluación",
+      });
+      break;
+
+    case "cuenta_corriente":
+      await supabase.from("movimientos_cuenta").insert({
+        maestra_id: user.id,
+        alumno_id: data.alumno_id,
+        tipo_movimiento: "clase_descontada",
+        monto: -data.monto,
+        creditos: 0,
+        referencia_id: data.clase_id,
+        descripcion: "Clase cerrada con evaluación",
+      });
+      break;
+
+    case "abono_mensual":
+      // No hay cargo por clase individual en este modelo
+      break;
+  }
 }

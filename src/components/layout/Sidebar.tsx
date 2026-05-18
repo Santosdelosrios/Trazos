@@ -125,8 +125,9 @@ export default function Sidebar({ isOpen, setIsOpen, plan = "free" }: SidebarPro
       <nav className="flex-1 space-y-1 px-3 py-4">
         {NAV_ITEMS.map((item) => {
           const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            item.href === "/clases"
+              ? pathname === "/clases" || (pathname.startsWith("/clases/") && !pathname.startsWith("/clases/nueva"))
+              : pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
           return (
             <Link

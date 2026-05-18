@@ -6,6 +6,8 @@ import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-
 import { getPlan } from "@/lib/plan";
 import ReporteButton from "@/components/premium/ReporteButton";
 import EditarAlumnoModal from "./EditarAlumnoModal";
+import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
+import type { ModeloCobro } from "@/lib/types/database";
 
 export const metadata = {
   title: "Perfil del Alumno | Trazos",
@@ -145,6 +147,14 @@ export default async function AlumnoPerfilPage({
               <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
                 {alumno.grado}
               </span>
+              {(() => {
+                const modeloConfig = MODELO_COBRO_CONFIG[(alumno.modelo_cobro || "por_clase") as ModeloCobro];
+                return (
+                  <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold", modeloConfig.bg, modeloConfig.color)}>
+                    {modeloConfig.icon} {modeloConfig.label}
+                  </span>
+                );
+              })()}
               {alumno.notas && <span>· {alumno.notas}</span>}
             </p>
           </div>
@@ -157,6 +167,8 @@ export default async function AlumnoPerfilPage({
                 apellido: alumno.apellido,
                 grado: alumno.grado,
                 notas: alumno.notas,
+                modelo_cobro: alumno.modelo_cobro || "por_clase",
+                tarifa_override: alumno.tarifa_override ?? null,
               }}
             />
             <Link

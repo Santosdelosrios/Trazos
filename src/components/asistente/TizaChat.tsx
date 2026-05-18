@@ -220,7 +220,7 @@ export default function TizaChat() {
         id="tiza-fab"
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          fixed bottom-6 right-6 z-50
+          fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50
           w-14 h-14 rounded-full
           flex items-center justify-center
           shadow-lg shadow-primary-500/20
@@ -242,8 +242,9 @@ export default function TizaChat() {
       {/* ===== Chat Panel ===== */}
       <div
         className={`
-          fixed bottom-24 right-6 z-50
-          w-[calc(100vw-3rem)] max-w-sm
+          fixed bottom-40 right-4 md:bottom-24 md:right-6 z-50
+          w-[calc(100vw-2rem)] md:w-[calc(100vw-3rem)] max-w-sm
+
           rounded-2xl overflow-hidden
           flex flex-col
           transition-all duration-300 ease-out

@@ -78,7 +78,7 @@ export default function FormNuevoGasto() {
             Monto ($)
           </label>
           <input
-            type="number"
+            type="number" inputMode="numeric" pattern="[0-9]*"
             min={0}
             step={100}
             value={monto}

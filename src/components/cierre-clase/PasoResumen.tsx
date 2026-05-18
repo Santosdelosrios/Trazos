@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import type { HitoAprendizaje, EjercicioGenerado, EjercicioResultado } from "@/lib/types/database";
+import type { HitoAprendizaje, EjercicioGenerado, EjercicioResultado, ModeloCobro } from "@/lib/types/database";
+import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 import { Target, Bot, Wallet, CheckCircle2, Sparkles, Frown, Meh, Smile, Star, PenTool } from "lucide-react";
 
 interface PasoResumenProps {
@@ -11,6 +12,7 @@ interface PasoResumenProps {
   ejercicios: EjercicioGenerado[];
   resultados: EjercicioResultado[];
   nota: number | null;
+  modeloCobro?: ModeloCobro;
   initialMonto?: number;
   initialDuracion?: number;
   onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => void;
@@ -22,6 +24,7 @@ export default function PasoResumen({
   ejercicios,
   resultados,
   nota,
+  modeloCobro = "por_clase",
   initialMonto,
   initialDuracion,
   onRegistrarCobro,
@@ -29,6 +32,8 @@ export default function PasoResumen({
   const [monto, setMonto] = useState<string>(initialMonto?.toString() || "");
   const [duracionReal, setDuracionReal] = useState<number>(initialDuracion || 1);
   const [cobroStatus, setCobroStatus] = useState<"none" | "saving" | "saved">("none");
+
+  const config = MODELO_COBRO_CONFIG[modeloCobro];
 
   if (isLoading) {
     return (
@@ -143,9 +148,9 @@ export default function PasoResumen({
       </section>
 
       {/* ========================================
-          REGISTRO DE COBRO
+          REGISTRO DE COBRO / MOVIMIENTO AUTOMÁTICO
           ======================================== */}
-      {onRegistrarCobro && (
+      {modeloCobro === "por_clase" && onRegistrarCobro && (
         <section className="rounded-2xl border border-surface-200 bg-white p-8 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <Wallet size={20} className="text-surface-700" />
@@ -165,7 +170,7 @@ export default function PasoResumen({
                     Duración real (horas)
                   </label>
                   <input
-                    type="number"
+                    type="number" inputMode="numeric" pattern="[0-9]*"
                     min="0.5"
                     step="0.5"
                     value={duracionReal}
@@ -178,7 +183,7 @@ export default function PasoResumen({
                     Monto a cobrar (ARS)
                   </label>
                   <input
-                    type="number"
+                    type="number" inputMode="numeric" pattern="[0-9]*"
                     min="0"
                     step="100"
                     value={monto}
@@ -215,6 +220,34 @@ export default function PasoResumen({
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {modeloCobro !== "por_clase" && (
+        <section className="rounded-2xl border border-surface-200 bg-white p-8 shadow-sm space-y-4 text-left">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-100 text-xl">
+              {config.icon}
+            </span>
+            <div>
+              <h3 className="font-bold text-surface-900">{config.label}</h3>
+              <p className="text-xs text-surface-500">{config.descripcion}</p>
+            </div>
+          </div>
+          
+          <div className="rounded-xl bg-success-50 p-4 border border-success-200 text-xs text-success-800 flex items-center gap-3 font-medium">
+            <CheckCircle2 size={20} className="text-success-500 flex-shrink-0" />
+            <div>
+              <p className="font-bold">Movimiento registrado automáticamente</p>
+              <p className="mt-0.5 text-success-700">
+                {modeloCobro === "bolsa_creditos"
+                  ? "Se descontó 1 clase de la bolsa de créditos del alumno."
+                  : modeloCobro === "abono_mensual"
+                  ? "El alumno tiene un abono fijo mensual vigente."
+                  : "Se registró el valor de la clase en la cuenta corriente del alumno."}
+              </p>
+            </div>
+          </div>
         </section>
       )}
 

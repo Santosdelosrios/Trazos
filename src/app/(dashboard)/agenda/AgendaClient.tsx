@@ -136,7 +136,7 @@ function ClaseCard({
         touchAction: "none",
       }}
       className={cn(
-        "group/item rounded-xl pl-2.5 pr-1 py-1.5 border shadow-sm transition-shadow w-full",
+        "group/item rounded-xl pl-2.5 pr-1 py-1.5 border shadow-sm transition-shadow",
         isGhost ? "opacity-30 grayscale pointer-events-none border-dashed" : "opacity-100",
         (isDraggingActive || heightDelta !== 0) ? "shadow-2xl scale-[1.02] border-primary-300 ring-4 ring-primary-500/10 cursor-grabbing" : "border-primary-100",
         "bg-white border-l-4 border-l-primary-500",
@@ -586,7 +586,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             </div>
           </div>
 
-          <div className="flex relative overflow-y-auto max-h-[700px]">
+          <div className="flex relative overflow-y-auto max-h-[700px] custom-scrollbar">
             {/* Hour Axis */}
             <div className="w-16 flex-none bg-surface-50/30 border-r border-surface-100 relative">
               {Array.from({ length: 15 }).map((_, i) => (

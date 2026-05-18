@@ -33,11 +33,13 @@ export default async function NuevaClasePage({
     { data: alumnos, error },
     { data: clasesRecientes },
     agendaResult,
+    { data: tarifaData },
   ] = await Promise.all([
     // Dropdown data
     supabase
       .from("alumnos")
-      .select("id, nombre, apellido, grado")
+      .select("id, nombre, apellido, grado, modelo_cobro, tarifa_override")
+      .eq("maestra_id", user.id)
       .order("nombre", { ascending: true }),
 
     // Frequent topics for suggestions
@@ -56,6 +58,15 @@ export default async function NuevaClasePage({
           .eq("id", agendaId)
           .single()
       : Promise.resolve({ data: null }),
+
+    // Active global tarifa
+    supabase
+      .from("tarifas")
+      .select("valor_hora")
+      .eq("maestra_id", user.id)
+      .eq("activa", true)
+      .order("vigente_desde", { ascending: false })
+      .limit(1),
   ]);
 
   if (error) {
@@ -86,7 +97,7 @@ export default async function NuevaClasePage({
       initialAlumnoId={alumnoId}
       initialAgendaId={agendaId}
       initialTema={tema}
-      initialTarifa={agendaData?.tarifa_esperada}
+      initialTarifa={agendaData?.tarifa_esperada ?? tarifaData?.[0]?.valor_hora ?? null}
       initialDuracion={agendaData?.duracion_estimada}
       sugerencias={sugerencias.length > 0 ? sugerencias : undefined}
     />

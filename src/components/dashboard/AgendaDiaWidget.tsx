@@ -81,7 +81,7 @@ function ClaseCard({
         touchAction: "none",
       }}
       className={cn(
-        "group/item rounded-xl pl-2.5 pr-1 py-1.5 border shadow-sm transition-shadow w-full",
+        "group/item rounded-xl pl-2.5 pr-1 py-1.5 border shadow-sm transition-shadow",
         isGhost ? "opacity-30 grayscale pointer-events-none border-dashed" : "opacity-100",
         (isDraggingActive || heightDelta !== 0) ? "shadow-2xl scale-[1.02] border-primary-300 ring-4 ring-primary-500/10 cursor-grabbing" : "border-primary-100",
         "bg-white border-l-4 border-l-primary-500",
@@ -188,7 +188,7 @@ function DroppableColumna({ dateKey, isToday, children }: { dateKey: string; isT
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex flex-col min-h-[1120px] transition-colors border-r border-surface-100 last:border-r-0 w-full",
+        "relative flex flex-col min-h-[1120px] transition-colors border-r border-surface-100 last:border-r-0 flex-1 min-w-0",
         "bg-primary-50/10",
         isOver && "bg-primary-50/50"
       )}
@@ -377,7 +377,7 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
           </p>
         </div>
       ) : (
-        <div className="flex-1 relative overflow-y-auto max-h-[600px] bg-white">
+        <div className="flex-1 relative overflow-y-auto overflow-x-hidden max-h-[600px] bg-white custom-scrollbar">
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}

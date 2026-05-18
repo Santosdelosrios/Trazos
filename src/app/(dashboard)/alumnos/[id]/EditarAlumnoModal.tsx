@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { updateAlumno } from "../actions";
-import { Pencil, X, Sparkles, Check } from "lucide-react";
+import { Pencil, X, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
+import type { ModeloCobro } from "@/lib/types/database";
+import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 
 interface Alumno {
   id: string;
@@ -12,12 +14,17 @@ interface Alumno {
   apellido: string;
   grado: string;
   notas?: string | null;
+  modelo_cobro: ModeloCobro;
+  tarifa_override?: number | null;
 }
+
+const MODELOS = Object.entries(MODELO_COBRO_CONFIG) as [ModeloCobro, typeof MODELO_COBRO_CONFIG[ModeloCobro]][];
 
 export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedModelo, setSelectedModelo] = useState<ModeloCobro>(alumno.modelo_cobro);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -26,6 +33,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    formData.set("modelo_cobro", selectedModelo);
     try {
       await updateAlumno(alumno.id, formData);
       setIsOpen(false);
@@ -54,7 +62,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
             className="absolute inset-0" 
             onClick={() => setIsOpen(false)}
           />
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white border border-surface-200 shadow-2xl p-6 z-10">
+          <div className="relative w-full max-w-lg overflow-y-auto max-h-[90vh] rounded-3xl bg-white border border-surface-200 shadow-2xl p-6 z-10">
             <div className="flex items-center justify-between pb-4 border-b border-surface-100 mb-6">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-600 font-bold">
@@ -65,7 +73,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
                     Editar ficha
                   </h3>
                   <p className="text-xs text-surface-500">
-                    Modificá el nivel, nombre o notas del alumno.
+                    Datos, nivel y modelo de facturación.
                   </p>
                 </div>
               </div>
@@ -83,7 +91,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-1">
@@ -116,6 +124,56 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
                   Nivel educativo actual
                 </label>
                 <NivelEducativoSelector name="grado" defaultValue={alumno.grado} />
+              </div>
+
+              {/* Modelo de Facturación */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-2">
+                  Modelo de facturación
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {MODELOS.map(([key, config]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedModelo(key)}
+                      className={`flex items-start gap-2 rounded-xl border p-3 text-left transition-all ${
+                        selectedModelo === key
+                          ? `border-primary-400 ${config.bg} ring-2 ring-primary-200 shadow-sm`
+                          : "border-surface-200 bg-white hover:border-surface-300 hover:bg-surface-50"
+                      }`}
+                    >
+                      <span className="text-lg leading-none mt-0.5">{config.icon}</span>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-bold ${selectedModelo === key ? config.color : "text-surface-700"}`}>
+                          {config.label}
+                        </p>
+                        <p className="text-[10px] text-surface-500 leading-tight mt-0.5">
+                          {config.descripcion}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tarifa individual */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-1">
+                  Tarifa individual <span className="font-normal normal-case">(opcional, deja vacío para usar la global)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-400 font-bold">$</span>
+                  <input
+                    name="tarifa_override"
+                    type="number" inputMode="numeric" pattern="[0-9]*"
+                    step="0.01"
+                    min="0"
+                    defaultValue={alumno.tarifa_override ?? ""}
+                    placeholder="Ej: 5000"
+                    className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-8 pr-4 py-2 text-sm font-medium focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                  />
+                </div>
               </div>
 
               <div>

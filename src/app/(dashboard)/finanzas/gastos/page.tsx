@@ -8,6 +8,7 @@ import {
 import FormNuevoGasto from "./FormNuevoGasto";
 import { Package, RefreshCw } from "lucide-react";
 import { CategoriaGastoIcon } from "@/components/ui/CategoriaGastoIcon";
+import BotonEliminarGasto from "@/components/finanzas/BotonEliminarGasto";
 
 export const metadata = {
   title: "Gastos | Trazos",
@@ -98,9 +99,12 @@ export default async function GastosPage() {
                       </p>
                     </div>
                   </div>
-                  <span className="text-sm font-bold text-danger-500">
-                    -{formatearMonto(gasto.monto)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-danger-500">
+                      -{formatearMonto(gasto.monto)}
+                    </span>
+                    <BotonEliminarGasto gastoId={gasto.id} />
+                  </div>
                 </div>
               );
             })}

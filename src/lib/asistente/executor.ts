@@ -35,6 +35,10 @@ export async function executeTool(
         return await organizarCobroMes(supabase, maestraId, args);
       case "consultar_feriados":
         return await consultarFeriadosTool(args.anio as number);
+      case "cambiar_modelo_cobro":
+        return await cambiarModeloCobro(supabase, maestraId, args);
+      case "cargar_creditos":
+        return await cargarCreditosTool(supabase, maestraId, args);
       default:
         return {
           success: false,
@@ -63,10 +67,10 @@ async function buscarAlumno(
 ): Promise<ToolResult> {
   let queryBuilder = supabase
     .from("alumnos")
-    .select("id, nombre, apellido, grado")
+    .select("id, nombre, apellido, grado, modelo_cobro, saldo_actual")
     .eq("maestra_id", maestraId);
 
-  const tokens = query.trim().split(/\\s+/);
+  const tokens = query.trim().split(/\s+/);
   for (const token of tokens) {
     queryBuilder = queryBuilder.or(`nombre.ilike.%${token}%,apellido.ilike.%${token}%`);
   }
@@ -93,6 +97,8 @@ async function buscarAlumno(
         nombre: a.nombre,
         apellido: a.apellido,
         grado: a.grado,
+        modelo_cobro: a.modelo_cobro || "por_clase",
+        saldo_actual: a.saldo_actual || 0,
       })),
       count: data.length,
     },
@@ -280,27 +286,70 @@ async function consultarSaldo(
   maestraId: string,
   alumnoId: string
 ): Promise<ToolResult> {
-  const { data, error } = await supabase.rpc("calcular_saldo_alumno", {
-    p_alumno_id: alumnoId,
-    p_maestra_id: maestraId,
-  });
+  // Leer saldo cacheado + modelo de cobro directamente (sin RPC pesada)
+  const { data: alumno, error: errAlumno } = await supabase
+    .from("alumnos")
+    .select("nombre, apellido, modelo_cobro, saldo_actual, tarifa_override")
+    .eq("id", alumnoId)
+    .eq("maestra_id", maestraId)
+    .single();
 
-  if (error) {
-    return { success: false, data: { error: error.message }, summary: "Error consultando saldo" };
+  if (errAlumno || !alumno) {
+    return { success: false, data: { error: errAlumno?.message || "Alumno no encontrado" }, summary: "Error consultando saldo" };
   }
 
-  // La RPC devuelve un array con un solo registro
-  const saldo = Array.isArray(data) ? data[0] : data;
+  // Clases dictadas (siempre útil)
+  const { count } = await supabase
+    .from("clase_alumnos")
+    .select("id", { count: "exact", head: true })
+    .eq("alumno_id", alumnoId);
+
+  const modelo = alumno.modelo_cobro || "por_clase";
+  const saldo = alumno.saldo_actual ?? 0;
+  const clases = count ?? 0;
+
+  // Generar resumen según modelo
+  const modeloLabels: Record<string, string> = {
+    por_clase: "Pago por Clase",
+    bolsa_creditos: "Bolsa de Créditos",
+    abono_mensual: "Abono Mensual",
+    cuenta_corriente: "Cuenta Corriente",
+  };
+
+  let summaryText: string;
+  switch (modelo) {
+    case "bolsa_creditos":
+      summaryText = saldo > 0
+        ? `${alumno.nombre} tiene ${saldo} crédito(s) restante(s)`
+        : `${alumno.nombre} se pasó ${Math.abs(saldo)} crédito(s)`;
+      break;
+    case "cuenta_corriente":
+      summaryText = saldo > 0
+        ? `${alumno.nombre} debe $${saldo}`
+        : saldo < 0
+        ? `${alumno.nombre} tiene $${Math.abs(saldo)} a favor`
+        : `${alumno.nombre} está al día`;
+      break;
+    case "abono_mensual":
+      summaryText = saldo > 0
+        ? `${alumno.nombre} debe $${saldo} de abono`
+        : `${alumno.nombre} está al día con el abono`;
+      break;
+    default:
+      summaryText = `Saldo pendiente de ${alumno.nombre}: $${saldo}`;
+  }
 
   return {
     success: true,
     data: {
-      clases_dictadas: saldo?.clases_dictadas ?? 0,
-      total_facturado: saldo?.total_facturado ?? 0,
-      total_cobrado: saldo?.total_cobrado ?? 0,
-      saldo_pendiente: saldo?.saldo_pendiente ?? 0,
+      alumno: `${alumno.nombre} ${alumno.apellido}`,
+      modelo_cobro: modelo,
+      modelo_cobro_label: modeloLabels[modelo] || modelo,
+      clases_dictadas: clases,
+      saldo_actual: saldo,
+      tarifa_override: alumno.tarifa_override,
     },
-    summary: `Saldo pendiente: $${saldo?.saldo_pendiente ?? 0}`,
+    summary: summaryText,
   };
 }
 
@@ -390,10 +439,10 @@ async function organizarCobroMes(
   const ultimoDia = new Date(anio, mes, 0).getDate();
   const fechaFin = `${anio}-${String(mes).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
 
-  // 1. Obtener datos del alumno
+  // 1. Obtener datos del alumno (incluyendo saldo cacheado)
   const { data: alumno } = await supabase
     .from("alumnos")
-    .select("nombre, apellido, grado")
+    .select("nombre, apellido, grado, modelo_cobro, saldo_actual")
     .eq("id", alumnoId)
     .single();
 
@@ -425,19 +474,8 @@ async function organizarCobroMes(
     .limit(1)
     .maybeSingle();
 
-  // 5. Saldo general (intentar RPC, fallback a cálculo manual)
-  let saldoPendiente = 0;
-  try {
-    const { data: saldo } = await supabase.rpc("calcular_saldo_alumno", {
-      p_alumno_id: alumnoId,
-      p_maestra_id: maestraId,
-    });
-    const s = Array.isArray(saldo) ? saldo[0] : saldo;
-    saldoPendiente = s?.saldo_pendiente ?? 0;
-  } catch {
-    // Si la RPC falla, sumar pagos pendientes
-    saldoPendiente = (pagosPendientes || []).reduce((acc, p) => acc + (p.monto || 0), 0);
-  }
+  // 5. Saldo: leer directo del campo cacheado
+  const saldoPendiente = alumno?.saldo_actual ?? 0;
 
   // Clasificar clases del mes
   const clasesPendientes = (clasesDelMes || []).filter((c) => c.estado === "pendiente");
@@ -493,6 +531,115 @@ async function consultarFeriadosTool(anio: number): Promise<ToolResult> {
     success: true,
     data: { anio, feriados: feriadosList, total: feriadosList.length },
     summary: `Consulté ${feriadosList.length} feriados de Argentina para el año ${anio}.`,
+  };
+}
+
+async function cambiarModeloCobro(
+  supabase: SupabaseClient,
+  maestraId: string,
+  args: Record<string, unknown>
+): Promise<ToolResult> {
+  const alumnoId = args.alumno_id as string;
+  const nuevoModelo = args.nuevo_modelo as string;
+  const tarifaOverride = args.tarifa_override as number | undefined;
+
+  const validModels = ["por_clase", "bolsa_creditos", "abono_mensual", "cuenta_corriente"];
+  if (!validModels.includes(nuevoModelo)) {
+    return { success: false, data: { error: "Modelo inválido" }, summary: "Modelo de cobro no reconocido" };
+  }
+
+  const { error } = await supabase
+    .from("alumnos")
+    .update({ 
+      modelo_cobro: nuevoModelo,
+      tarifa_override: tarifaOverride ?? null 
+    })
+    .eq("id", alumnoId)
+    .eq("maestra_id", maestraId);
+
+  if (error) {
+    return { success: false, data: { error: error.message }, summary: "Error actualizando modelo de cobro" };
+  }
+
+  return {
+    success: true,
+    data: { alumno_id: alumnoId, nuevo_modelo: nuevoModelo, tarifa_override: tarifaOverride },
+    summary: `Cambié el modelo de cobro a '${nuevoModelo}'${tarifaOverride ? ` con una tarifa personalizada de $${tarifaOverride}` : ''}.`,
+  };
+}
+
+async function cargarCreditosTool(
+  supabase: SupabaseClient,
+  maestraId: string,
+  args: Record<string, unknown>
+): Promise<ToolResult> {
+  const alumnoId = args.alumno_id as string;
+  const creditos = args.creditos as number;
+  let monto = args.monto as number | undefined;
+  const nota = args.nota as string | undefined;
+
+  // Si no se proporcionó monto, calculamos usando la tarifa
+  if (monto === undefined) {
+    // 1. Obtener tarifa del alumno o tarifa general
+    const { data: alumno } = await supabase
+      .from("alumnos")
+      .select("tarifa_override")
+      .eq("id", alumnoId)
+      .eq("maestra_id", maestraId)
+      .single();
+
+    let tarifaCalculo = alumno?.tarifa_override;
+
+    if (!tarifaCalculo) {
+      const { data: tarifaGlobal } = await supabase
+        .from("tarifas")
+        .select("valor_hora")
+        .eq("maestra_id", maestraId)
+        .eq("activa", true)
+        .order("vigente_desde", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      tarifaCalculo = tarifaGlobal?.valor_hora ?? 0;
+    }
+
+    monto = creditos * tarifaCalculo;
+  }
+
+  // 2. Registrar el pago monetario
+  const { data: pago, error: errPago } = await supabase.from("pagos").insert({
+    maestra_id: maestraId,
+    alumno_id: alumnoId,
+    monto: monto,
+    estado: "pagado",
+    fecha_pago: new Date().toISOString().split("T")[0],
+    nota: nota || `Pack de ${creditos} créditos (Asistente)`,
+  }).select("id").single();
+
+  if (errPago) {
+    return { success: false, data: { error: errPago.message }, summary: "Error registrando pago de créditos" };
+  }
+
+  // 3. Registrar movimiento con créditos positivos
+  const { error: errMov } = await supabase.from("movimientos_cuenta").insert({
+    maestra_id: maestraId,
+    alumno_id: alumnoId,
+    tipo_movimiento: "pago_ingresado",
+    monto: monto,
+    creditos: creditos,
+    referencia_id: pago?.id || null,
+    descripcion: `Pack de ${creditos} clases (Asistente)`,
+  });
+
+  if (errMov) {
+    return { success: false, data: { error: errMov.message }, summary: "Error registrando movimiento de créditos" };
+  }
+
+  // 4. Llamar explícitamente a recalcular_saldo para obtener el saldo actualizado si es necesario (el trigger lo hace, pero podemos devolver confirmación)
+  return {
+    success: true,
+    data: { creditos_sumados: creditos, monto_cobrado: monto },
+    summary: `Agregué ${creditos} créditos a la bolsa del alumno (por $${monto}).`,
   };
 }
 

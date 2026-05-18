@@ -11,6 +11,18 @@ export type Materia =
   | "otro"
   | "general";
 
+export type ModeloCobro =
+  | "por_clase"
+  | "bolsa_creditos"
+  | "abono_mensual"
+  | "cuenta_corriente";
+
+export type TipoMovimiento =
+  | "pago_ingresado"
+  | "clase_descontada"
+  | "ajuste"
+  | "cargo_abono";
+
 export type NivelComprension =
   | "no_entendio"
   | "en_proceso"
@@ -42,6 +54,9 @@ export interface Alumno {
   apellido: string;
   grado: Nivel;
   notas?: string | null;
+  modelo_cobro: ModeloCobro;
+  tarifa_override?: number | null;
+  saldo_actual: number;
   created_at: string;
 }
 
@@ -139,9 +154,33 @@ export interface Pago {
   estado: EstadoPago;
   fecha_pago?: string | null;
   nota?: string | null;
+  periodo?: string | null;
   created_at: string;
   // Join fields
   alumnos?: Alumno;
+}
+
+export interface Abono {
+  id: string;
+  maestra_id: string;
+  alumno_id: string;
+  monto_mensual: number;
+  activo: boolean;
+  vigente_desde: string;
+  notas?: string | null;
+  created_at: string;
+}
+
+export interface MovimientoCuenta {
+  id: string;
+  maestra_id: string;
+  alumno_id: string;
+  tipo_movimiento: TipoMovimiento;
+  monto: number;
+  creditos: number;
+  referencia_id?: string | null;
+  descripcion?: string | null;
+  created_at: string;
 }
 
 export interface ResumenFinancieroMes {
@@ -277,4 +316,38 @@ export const ESTADO_PAGO_CONFIG: Record<
   pagado: { label: "Pagado", color: "text-success-500", bg: "bg-success-50" },
   parcial: { label: "Parcial", color: "text-accent-600", bg: "bg-accent-50" },
   cancelado: { label: "Cancelado", color: "text-surface-400", bg: "bg-surface-100" },
+};
+
+export const MODELO_COBRO_CONFIG: Record<
+  ModeloCobro,
+  { label: string; descripcion: string; icon: string; color: string; bg: string }
+> = {
+  por_clase: {
+    label: "Pago por Clase",
+    descripcion: "Se cobra cada clase dictada individualmente.",
+    icon: "💳",
+    color: "text-primary-700",
+    bg: "bg-primary-50",
+  },
+  bolsa_creditos: {
+    label: "Bolsa de Créditos",
+    descripcion: "El padre compra un pack de N clases por adelantado.",
+    icon: "🎟️",
+    color: "text-accent-700",
+    bg: "bg-accent-50",
+  },
+  abono_mensual: {
+    label: "Abono Mensual",
+    descripcion: "Monto fijo por mes, sin importar cantidad de clases.",
+    icon: "📅",
+    color: "text-indigo-700",
+    bg: "bg-indigo-50",
+  },
+  cuenta_corriente: {
+    label: "Cuenta Corriente",
+    descripcion: "Saldo libre con cargos y pagos. Puede quedar a favor o en deuda.",
+    icon: "📒",
+    color: "text-emerald-700",
+    bg: "bg-emerald-50",
+  },
 };

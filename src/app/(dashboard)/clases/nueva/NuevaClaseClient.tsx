@@ -180,6 +180,29 @@ export default function NuevaClaseClient({
           console.error("Error al completar agenda:", agendaError);
         }
       }
+
+      // Si el modelo de cobro no es "por_clase", registrar automáticamente el descuento/movimiento
+      const alumnoSeleccionado = alumnos.find((a) => a.id === selectedAlumnoId);
+      const modelo = alumnoSeleccionado?.modelo_cobro || "por_clase";
+
+      if (modelo !== "por_clase" && claseIdGuardada && selectedAlumnoId) {
+        try {
+          const tarifaAlumno = alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? 0;
+          const duracionFinal = initialDuracion ?? 1;
+          const montoCalculado = tarifaAlumno * duracionFinal;
+
+          const { registrarCobroClase } = await import("./actions");
+          await registrarCobroClase({
+            clase_id: claseIdGuardada,
+            alumno_id: selectedAlumnoId,
+            monto: montoCalculado,
+            duracion_real: duracionFinal,
+            estado: "pagado", // irrelevante para bolsa/abono/cc
+          });
+        } catch (cobroErr) {
+          console.error("Error al registrar movimiento automático:", cobroErr);
+        }
+      }
     } catch (error) {
       console.error(error);
       alert("Hubo un error al generar el hito final.");
@@ -280,29 +303,33 @@ export default function NuevaClaseClient({
           <PasoAutoevaluacion onComplete={handleAutoevaluacionSubmit} />
         )}
         
-        {step === 4 && (
-          <PasoResumen 
-            isLoading={isGeneratingHito} 
-            hito={hitoData} 
-            ejercicios={ejercicios}
-            resultados={resultados}
-            nota={notaCalculada}
-            initialMonto={initialTarifa ?? undefined}
-            initialDuracion={initialDuracion}
-            onRegistrarCobro={(monto, duracion, estado) => {
-              if (claseIdGuardada && selectedAlumnoId) {
-                const { registrarCobroClase } = require("./actions");
-                registrarCobroClase({
-                  clase_id: claseIdGuardada,
-                  alumno_id: selectedAlumnoId,
-                  monto,
-                  duracion_real: duracion,
-                  estado
-                }).catch(console.error);
-              }
-            }}
-          />
-        )}
+        {step === 4 && (() => {
+          const alumnoSeleccionado = alumnos.find((a) => a.id === selectedAlumnoId);
+          return (
+            <PasoResumen 
+              isLoading={isGeneratingHito} 
+              hito={hitoData} 
+              ejercicios={ejercicios}
+              resultados={resultados}
+              nota={notaCalculada}
+              modeloCobro={alumnoSeleccionado?.modelo_cobro || "por_clase"}
+              initialMonto={alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? undefined}
+              initialDuracion={initialDuracion}
+              onRegistrarCobro={(monto, duracion, estado) => {
+                if (claseIdGuardada && selectedAlumnoId) {
+                  const { registrarCobroClase } = require("./actions");
+                  registrarCobroClase({
+                    clase_id: claseIdGuardada,
+                    alumno_id: selectedAlumnoId,
+                    monto,
+                    duracion_real: duracion,
+                    estado
+                  }).catch(console.error);
+                }
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import BottomNav from "./BottomNav";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayoutWrapper({
@@ -32,8 +33,12 @@ export default function DashboardLayoutWrapper({
         isSidebarOpen ? "md:pl-64" : "md:pl-0"
       )}>
         <Header onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">{children}</main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }
+

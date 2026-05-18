@@ -184,5 +184,55 @@ export const TOOL_DECLARATIONS = [
       required: ["anio"],
     },
   },
+  {
+    name: "cambiar_modelo_cobro",
+    description:
+      "Cambia el modelo de facturación/cobro de un alumno. Los modelos son: 'por_clase' (se paga cada clase dictada), 'bolsa_creditos' (compra un pack de clases y se descuenta), 'abono_mensual' (paga un monto fijo por mes) o 'cuenta_corriente' (tiene un saldo general positivo o negativo). Opcionalmente se le puede configurar una tarifa especial.",
+    parameters: {
+      type: "object",
+      properties: {
+        alumno_id: {
+          type: "string",
+          description: "UUID del alumno",
+        },
+        nuevo_modelo: {
+          type: "string",
+          description: "Debe ser exactamente uno de: 'por_clase', 'bolsa_creditos', 'abono_mensual', 'cuenta_corriente'.",
+        },
+        tarifa_override: {
+          type: "number",
+          description: "Tarifa por hora personalizada para este alumno (opcional). Si se deja vacío, usará la tarifa general de la maestra.",
+        },
+      },
+      required: ["alumno_id", "nuevo_modelo"],
+    },
+  },
+  {
+    name: "cargar_creditos",
+    description:
+      "Agrega créditos (clases) a la bolsa de un alumno o a su cuenta corriente. También registra el pago correspondiente por esos créditos.",
+    parameters: {
+      type: "object",
+      properties: {
+        alumno_id: {
+          type: "string",
+          description: "UUID del alumno",
+        },
+        creditos: {
+          type: "number",
+          description: "Cantidad de créditos/clases a agregar a la bolsa.",
+        },
+        monto: {
+          type: "number",
+          description: "Monto total cobrado por el pack de créditos. Si no se especifica, el sistema lo calculará automáticamente (créditos * tarifa).",
+        },
+        nota: {
+          type: "string",
+          description: "Nota o descripción opcional (ej: 'Pago por transferencia').",
+        },
+      },
+      required: ["alumno_id", "creditos"],
+    },
+  },
 ] as const;
 

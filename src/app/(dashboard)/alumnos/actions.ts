@@ -83,6 +83,11 @@ export async function updateAlumno(id: string, formData: FormData) {
   const apellido = formData.get("apellido") as string;
   const grado = formData.get("grado") as string;
   const notas = formData.get("notas") as string;
+  const modelo_cobro = formData.get("modelo_cobro") as string || "por_clase";
+  const tarifa_override_raw = formData.get("tarifa_override") as string;
+  const tarifa_override = tarifa_override_raw && tarifa_override_raw.trim() !== ""
+    ? parseFloat(tarifa_override_raw)
+    : null;
 
   const { error } = await supabase
     .from("alumnos")
@@ -91,6 +96,8 @@ export async function updateAlumno(id: string, formData: FormData) {
       apellido,
       grado,
       notas: notas || null,
+      modelo_cobro,
+      tarifa_override,
     })
     .eq("id", id)
     .eq("maestra_id", user.id);

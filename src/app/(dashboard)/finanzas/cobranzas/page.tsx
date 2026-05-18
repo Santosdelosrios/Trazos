@@ -30,10 +30,10 @@ export default async function CobranzasPage() {
     .eq("maestra_id", user.id)
     .order("created_at", { ascending: false });
 
-  // Alumnos para el form
+  // Alumnos para el form (con modelo de cobro)
   const { data: alumnos } = await supabase
     .from("alumnos")
-    .select("id, nombre, apellido")
+    .select("id, nombre, apellido, modelo_cobro")
     .eq("maestra_id", user.id)
     .order("apellido");
 

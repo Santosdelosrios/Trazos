@@ -88,6 +88,7 @@ export async function registrarPago(data: {
   estado: EstadoPago;
   fecha_pago?: string;
   nota?: string;
+  periodo?: string;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -101,6 +102,7 @@ export async function registrarPago(data: {
     estado: data.estado,
     fecha_pago: data.fecha_pago || null,
     nota: data.nota || null,
+    periodo: data.periodo || null,
   });
 
   if (error) throw new Error(error.message);
@@ -138,3 +140,127 @@ export async function eliminarPago(id: string) {
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
 }
+
+// ============================================================
+// ABONOS MENSUALES
+// ============================================================
+
+export async function guardarAbono(data: {
+  alumno_id: string;
+  monto_mensual: number;
+  notas?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Desactivar abono anterior si existe
+  await supabase
+    .from("abonos")
+    .update({ activo: false })
+    .eq("alumno_id", data.alumno_id)
+    .eq("maestra_id", user.id)
+    .eq("activo", true);
+
+  const { error } = await supabase.from("abonos").insert({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    monto_mensual: data.monto_mensual,
+    activo: true,
+    vigente_desde: new Date().toISOString().split("T")[0],
+    notas: data.notas || null,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/cobranzas");
+}
+
+// ============================================================
+// BOLSA DE CRÉDITOS
+// ============================================================
+
+export async function cargarCreditos(data: {
+  alumno_id: string;
+  creditos: number;
+  monto: number;
+  nota?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // 1. Registrar el pago monetario
+  const { data: pago, error: errPago } = await supabase.from("pagos").insert({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    monto: data.monto,
+    estado: "pagado",
+    fecha_pago: new Date().toISOString().split("T")[0],
+    nota: data.nota || `Pack de ${data.creditos} créditos`,
+  }).select("id").single();
+
+  if (errPago) throw new Error(errPago.message);
+
+  // 2. Registrar movimiento con créditos positivos
+  const { error: errMov } = await supabase.from("movimientos_cuenta").insert({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    tipo_movimiento: "pago_ingresado",
+    monto: data.monto,
+    creditos: data.creditos,
+    referencia_id: pago?.id || null,
+    descripcion: `Pack de ${data.creditos} clases`,
+  });
+
+  if (errMov) throw new Error(errMov.message);
+
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/cobranzas");
+  revalidatePath("/dashboard");
+}
+
+// ============================================================
+// CUENTA CORRIENTE — Pago a favor
+// ============================================================
+
+export async function registrarPagoCuentaCorriente(data: {
+  alumno_id: string;
+  monto: number;
+  nota?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // 1. Registrar el pago
+  const { data: pago, error: errPago } = await supabase.from("pagos").insert({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    monto: data.monto,
+    estado: "pagado",
+    fecha_pago: new Date().toISOString().split("T")[0],
+    nota: data.nota || null,
+  }).select("id").single();
+
+  if (errPago) throw new Error(errPago.message);
+
+  // 2. Movimiento positivo (crédito a favor)
+  const { error: errMov } = await supabase.from("movimientos_cuenta").insert({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    tipo_movimiento: "pago_ingresado",
+    monto: data.monto,
+    creditos: 0,
+    referencia_id: pago?.id || null,
+    descripcion: data.nota || "Pago recibido",
+  });
+
+  if (errMov) throw new Error(errMov.message);
+
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/cobranzas");
+  revalidatePath("/dashboard");
+}
+
