@@ -7,18 +7,15 @@ import TutorialPrimerosPasos from "@/components/dashboard/TutorialPrimerosPasos"
 import ClaseEnVivoWidget from "@/components/dashboard/ClaseEnVivoWidget";
 import type { ResumenFinancieroMes } from "@/lib/types/database";
 import { getTodayKeyAR } from "@/lib/utils/fechas";
-import { 
-  GraduationCap, 
-  BookOpen, 
-  Target, 
-  Sparkle, 
-  Calendar, 
-  Rocket, 
-  Sparkles, 
-  Trophy, 
-  Wallet, 
+import {
+  GraduationCap,
+  BookOpen,
+  Target,
+  Sparkle,
+  Calendar,
+  Sparkles,
+  Wallet,
   CreditCard,
-  ChevronRight
 } from "lucide-react";
 
 export const metadata = {
@@ -118,9 +115,17 @@ export default async function DashboardPage() {
   const proximasClases = agendaHoy || [];
   const clasesHoy = proximasClases.filter(i => i.fecha === todayStr);
   const numClasesHoy = clasesHoy.length;
-  const subtitulo = numClasesHoy > 0 
+  const subtitulo = numClasesHoy > 0
     ? `Hoy tenés ${numClasesHoy} clase${numClasesHoy > 1 ? 's' : ''} programada${numClasesHoy > 1 ? 's' : ''}.`
     : "No tenés clases programadas para hoy. ¡Día libre!";
+
+  const onboardingProgress = {
+    hasAlumnos: totalAlumnos > 0,
+    hasAgenda: proximasClases.length > 0,
+    hasClaseCerrada: (statsData?.length ?? 0) > 0,
+    hasCobro: (resumenFinanciero?.ingresos_mes ?? 0) > 0,
+  };
+  const onboardingComplete = Object.values(onboardingProgress).every(Boolean);
 
   return (
     <div className="animate-fade-in-up space-y-8 pb-12">
@@ -132,10 +137,12 @@ export default async function DashboardPage() {
           {subtitulo}
         </p>
       </div>
-      
-      {totalAlumnos === 0 ? (
-        <TutorialPrimerosPasos nombreMaestra={nombreMaestra} />
-      ) : (
+
+      {!onboardingComplete && (
+        <TutorialPrimerosPasos nombreMaestra={nombreMaestra} progress={onboardingProgress} />
+      )}
+
+      {totalAlumnos > 0 && (
         <>
           <ClaseEnVivoWidget proximasClases={proximasClases} />
 
