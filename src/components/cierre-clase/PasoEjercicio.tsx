@@ -34,7 +34,7 @@ export default function PasoEjercicio({
       {/* ========================================
           CONSIGNA
           ======================================== */}
-      <section className="rounded-2xl border border-surface-200 bg-white p-8 shadow-sm">
+      <section className="rounded-2xl border border-surface-200 bg-white p-5 sm:p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-md">
             <Bot size={28} />
@@ -57,7 +57,7 @@ export default function PasoEjercicio({
       {/* ========================================
           OPCIONES
           ======================================== */}
-      <section className="space-y-3">
+      <section className="space-y-2.5">
         {ejercicio.opciones.map((opcion) => {
           const isSelected = selectedOption === opcion.key;
 
@@ -67,7 +67,7 @@ export default function PasoEjercicio({
               onClick={() => handleSelect(opcion.key)}
               disabled={selectedOption !== null}
               className={cn(
-                "group w-full flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all duration-200",
+                "group w-full flex items-center gap-3 rounded-xl border-2 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 text-left transition-all duration-200",
                 isSelected
                   ? "border-primary-500 bg-primary-50 shadow-sm shadow-primary-200"
                   : "border-surface-200 bg-white hover:border-primary-300 hover:bg-primary-50/50",

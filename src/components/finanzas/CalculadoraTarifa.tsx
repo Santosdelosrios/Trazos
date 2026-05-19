@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { guardarTarifa } from "@/app/(dashboard)/finanzas/actions";
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import { Calculator, Banknote, CheckCircle2 } from "lucide-react";
@@ -17,11 +17,14 @@ export default function CalculadoraTarifa({ tarifaActual }: Props) {
   const [valorHora, setValorHora] = useState(tarifaActual ?? 0);
   const [guardado, setGuardado] = useState(false);
 
-  const clasesMensuales = clasesSemanales * 4;
-  const valorSugerido =
-    clasesMensuales > 0
-      ? Math.ceil((gananciaDeseada + gastosMensuales) / clasesMensuales / 100) * 100
-      : 0;
+  const clasesMensuales = useMemo(() => clasesSemanales * 4, [clasesSemanales]);
+  const valorSugerido = useMemo(
+    () =>
+      clasesMensuales > 0
+        ? Math.ceil((gananciaDeseada + gastosMensuales) / clasesMensuales / 100) * 100
+        : 0,
+    [clasesMensuales, gastosMensuales, gananciaDeseada]
+  );
 
   function handleGuardar() {
     if (valorHora <= 0) return;

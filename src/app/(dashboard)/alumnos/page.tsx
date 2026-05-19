@@ -49,7 +49,7 @@ export default async function AlumnosPage() {
     });
     
     if (saldosBatch && Array.isArray(saldosBatch)) {
-      saldosBatch.forEach((row: any) => {
+      saldosBatch.forEach((row: { alumno_id?: string; saldo_pendiente?: number }) => {
         if (row && row.alumno_id) {
           saldosMap[row.alumno_id] = Number(row.saldo_pendiente) || 0;
         }

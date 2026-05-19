@@ -171,16 +171,16 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/finanzas/cobranzas"
-              className="group flex flex-col items-center text-center rounded-xl border border-success-200 bg-success-50 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:bg-success-100"
+              className="group flex flex-col items-center text-center rounded-xl border border-success-200 bg-success-50 px-4 py-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:bg-success-100"
             >
-              <Wallet className="mb-2 text-success-600" size={24} />
+              <Wallet className="mb-2.5 text-success-600" size={20} />
               <span className="text-sm font-bold text-success-800">Cobro</span>
             </Link>
             <Link
               href="/finanzas/gastos"
-              className="group flex flex-col items-center text-center rounded-xl border border-danger-200 bg-danger-50 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:bg-danger-100"
+              className="group flex flex-col items-center text-center rounded-xl border border-danger-200 bg-danger-50 px-4 py-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md hover:bg-danger-100"
             >
-              <CreditCard className="mb-2 text-danger-600" size={24} />
+              <CreditCard className="mb-2.5 text-danger-600" size={20} />
               <span className="text-sm font-bold text-danger-800">Gasto</span>
             </Link>
           </div>
