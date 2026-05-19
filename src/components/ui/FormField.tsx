@@ -16,7 +16,7 @@ interface FormFieldProps {
 export default function FormField({ label, hint, children, className }: FormFieldProps) {
   return (
     <div className={className}>
-      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-surface-400">
+      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-surface-400">
         {label}
       </label>
       {children}

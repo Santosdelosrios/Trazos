@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AUTOEVALUACION_CONFIG, type Autoevaluacion } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import { Frown, Meh, Smile, Sparkles } from "lucide-react";
@@ -24,12 +24,17 @@ export default function PasoAutoevaluacion({
   onComplete,
 }: PasoAutoevaluacionProps) {
   const [selected, setSelected] = useState<Autoevaluacion | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleSelect = (nivel: Autoevaluacion) => {
     setSelected(nivel);
-    // Agregamos un delay más largo para que el alumno vea la animación
-    // y sienta que su respuesta fue registrada antes de avanzar.
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       onComplete(nivel);
     }, 1000);
   };
