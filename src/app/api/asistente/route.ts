@@ -210,11 +210,9 @@ export async function POST(request: Request) {
         const errStack = error instanceof Error ? error.stack : undefined;
         console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
 
-        // En dev incluimos el mensaje real para diagnosticar
-        const isDev = process.env.NODE_ENV !== "production";
-        const replyText = isDev
-          ? `Error técnico: ${errMsg}`
-          : "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?";
+        // TEMPORAL: exponemos el error real al cliente para diagnosticar
+        // el 400 BadRequest de Gemini. Quitar una vez resuelto.
+        const replyText = `⚠️ Error técnico (debug): ${errMsg.slice(0, 500)}`;
 
         close("error", {
           reply: replyText,
