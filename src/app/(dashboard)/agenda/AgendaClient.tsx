@@ -318,15 +318,15 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
         modifiers={[snapToGridModifier]}
       >
         <div className="rounded-3xl border border-surface-200 bg-white shadow-xl overflow-hidden">
-          <div className="flex border-b border-surface-100 bg-surface-50/50 min-w-[560px] md:min-w-[800px]">
+          <div className="flex border-b border-surface-100 bg-surface-50/50 md:min-w-[800px]">
             {/* Hour axis header spacer */}
-            <div className="w-12 md:w-16 border-r border-surface-100 flex-none" />
+            <div className="w-10 md:w-16 border-r border-surface-100 flex-none" />
             <div className="flex-1 grid grid-cols-7">
               {weekDays.map((date, i) => {
                 const isToday = isSameDay(date, today);
                 return (
                   <div key={i} className={cn(
-                    "px-2 py-4 text-center border-r border-surface-100 last:border-r-0",
+                    "px-1 py-4 text-center border-r border-surface-100 last:border-r-0 sm:px-2",
                     isToday && "bg-primary-50/50"
                   )}>
                     <p className={cn(
@@ -354,7 +354,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
 
           <div className="flex relative overflow-y-auto overflow-x-auto max-h-[700px] custom-scrollbar">
             {/* Hour Axis */}
-            <div className="w-12 md:w-16 flex-none bg-surface-50/30 border-r border-surface-100 sticky left-0 z-10">
+            <div className="w-10 md:w-16 flex-none bg-surface-50/30 border-r border-surface-100 sticky left-0 z-10">
               {Array.from({ length: 15 }).map((_, i) => (
                 <div key={i} className="h-20 border-b border-surface-100/50 relative">
                   <span className="absolute -top-2.5 right-2 text-[10px] font-bold text-surface-400">
@@ -365,7 +365,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             </div>
 
             {/* Columns Grid */}
-            <div className="flex-1 grid grid-cols-7 min-w-[560px] md:min-w-[800px]">
+            <div className="flex-1 grid grid-cols-7 md:min-w-[800px]">
               {weekDays.map((date) => {
                 const key = formatDateKey(date);
                 const items = itemsByDate[key] || [];
