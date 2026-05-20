@@ -122,34 +122,31 @@ export async function POST(request: Request) {
           history: trimmedHistory.length > 0 ? trimmedHistory : undefined,
         });
 
-        // Loop: usamos sendMessageStream y vamos forwardeando tokens al
-        // cliente apenas llegan. Si el response final tiene function calls,
-        // los resolvemos y volvemos a streamear.
+        // Estrategia híbrida:
+        // - Primer turno: sendMessageStream (token-by-token streaming si no hay tools)
+        // - Iteraciones con tool responses: sendMessage (non-stream) por estabilidad
+        //   del SDK con function response submission
+        // - Texto final tras tools: emitido como un único evento "token"
         type FunctionResponsePart = { functionResponse: { name: string; response: unknown } };
-        let currentInput: string | FunctionResponsePart[] = message;
-        let iterations = 0;
         let totalTextEmitted = "";
 
-        while (iterations <= MAX_TOOL_ITERATIONS) {
-          const { stream: geminiStream, response: finalResponsePromise } = await chat.sendMessageStream(
-            currentInput as Parameters<typeof chat.sendMessageStream>[0]
-          );
+        // PASO 1: primer mensaje con streaming
+        const { stream: firstStream, response: firstResponsePromise } = await chat.sendMessageStream(message);
 
-          for await (const chunk of geminiStream) {
-            const text = chunk.text();
-            if (text) {
-              totalTextEmitted += text;
-              controller.enqueue(sse({ type: "token", text }));
-            }
+        for await (const chunk of firstStream) {
+          const text = chunk.text();
+          if (text) {
+            totalTextEmitted += text;
+            controller.enqueue(sse({ type: "token", text }));
           }
+        }
 
-          const finalResponse = await finalResponsePromise;
-          const calls = finalResponse.functionCalls();
+        let lastResponse = await firstResponsePromise;
+        let calls = lastResponse.functionCalls();
+        let iterations = 0;
 
-          if (!calls || calls.length === 0) {
-            break;
-          }
-
+        // PASO 2: si hubo function calls, loop con sendMessage (non-stream)
+        while (calls && calls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
           const responses: FunctionResponsePart[] = [];
           for (const call of calls) {
             const toolResult = await executeTool(
@@ -172,16 +169,35 @@ export async function POST(request: Request) {
             });
           }
 
-          currentInput = responses;
+          // sendMessage (non-stream): más estable que sendMessageStream para
+          // function response submission. La respuesta llega completa de una.
+          const next = await chat.sendMessage(
+            responses as unknown as Parameters<typeof chat.sendMessage>[0]
+          );
+          lastResponse = next.response;
+
+          // Emitir el texto de esta iteración (si lo hay) como un único token
+          let chunkText = "";
+          try {
+            chunkText = lastResponse.text();
+          } catch {
+            chunkText = "";
+          }
+          if (chunkText) {
+            totalTextEmitted += chunkText;
+            controller.enqueue(sse({ type: "token", text: chunkText }));
+          }
+
+          calls = lastResponse.functionCalls();
           iterations++;
         }
 
         const updatedHistory = await chat.getHistory();
 
-        // Fallback: si no salió ningún texto (ej: se cortó por MAX_TOOL_ITERATIONS)
+        // Fallback: si no salió ningún texto
         if (!totalTextEmitted) {
           const fallback =
-            iterations > MAX_TOOL_ITERATIONS
+            iterations >= MAX_TOOL_ITERATIONS
               ? "Hice varias cosas, pero el proceso fue largo. Por favor revisá si todo quedó bien 😅"
               : "Listo. ¿Te ayudo con algo más?";
           controller.enqueue(sse({ type: "token", text: fallback }));

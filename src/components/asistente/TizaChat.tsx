@@ -224,7 +224,19 @@ export default function TizaChat() {
             } else if (payload.type === "done") {
               setHistory(payload.history || []);
             } else if (payload.type === "error") {
-              if (payload.reply) replaceContent(payload.reply);
+              // Si ya hubo contenido o acciones, agregamos el error como nota
+              // al final. Si no hubo nada, reemplazamos el bubble vacío.
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m;
+                  const hasContent = m.content.trim().length > 0;
+                  const hasActions = (m.actions?.length ?? 0) > 0;
+                  if (hasContent || hasActions) {
+                    return { ...m, content: m.content + (m.content ? "\n\n" : "") + (payload.reply || "") };
+                  }
+                  return { ...m, content: payload.reply || "" };
+                })
+              );
               if (payload.history) setHistory(payload.history);
             }
           } catch {
