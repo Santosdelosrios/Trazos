@@ -2,10 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
+import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight, BookOpen, History } from "lucide-react";
 import { getPlan } from "@/lib/plan";
 import ReporteButton from "@/components/premium/ReporteButton";
 import EditarAlumnoModal from "./EditarAlumnoModal";
+import EmptyState from "@/components/ui/EmptyState";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 import type { ModeloCobro } from "@/lib/types/database";
 
@@ -207,9 +208,12 @@ export default async function AlumnoPerfilPage({
             </div>
             
             {temasArray.length === 0 ? (
-              <div className="p-12 text-center text-surface-500 text-sm">
-                Aún no hay evaluaciones para este alumno.
-              </div>
+              <EmptyState
+                icon={BookOpen}
+                size="compact"
+                title="Sin evaluaciones todavía"
+                description="Cuando cierres una clase con este alumno, vas a ver acá la evolución por tema."
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-surface-600">
@@ -284,7 +288,12 @@ export default async function AlumnoPerfilPage({
             
             <div className="p-4 sm:p-6">
               {!historial || historial.length === 0 ? (
-                <p className="text-sm text-surface-500 text-center">Sin actividad reciente.</p>
+                <EmptyState
+                  icon={History}
+                  size="compact"
+                  title="Sin actividad reciente"
+                  description="Las últimas clases cerradas aparecerán acá."
+                />
               ) : (
                 <div className="relative border-l border-surface-200 ml-3 space-y-8">
                   {historial.slice(0, 5).map((registro: any) => {

@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { checkAlumnoLimit } from "@/lib/plan";
+import { CrearAlumnoSchema, ActualizarAlumnoSchema } from "@/lib/validations/schemas";
+import { TAG } from "@/lib/db/tags";
 
 export async function createAlumno(formData: FormData) {
   const supabase = await createClient();
@@ -23,23 +25,30 @@ export async function createAlumno(formData: FormData) {
     );
   }
 
-  const nombre = formData.get("nombre") as string;
-  const apellido = formData.get("apellido") as string;
-  const grado = formData.get("grado") as string;
-  const notas = formData.get("notas") as string;
+  // Validación zod centralizada
+  const parsed = CrearAlumnoSchema.safeParse({
+    nombre: formData.get("nombre"),
+    apellido: formData.get("apellido"),
+    grado: formData.get("grado"),
+    notas: formData.get("notas") || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
 
   const { error } = await supabase.from("alumnos").insert({
     maestra_id: user.id,
-    nombre,
-    apellido,
-    grado,
-    notas: notas || null,
+    nombre: parsed.data.nombre,
+    apellido: parsed.data.apellido,
+    grado: parsed.data.grado,
+    notas: parsed.data.notas || null,
   });
 
   if (error) {
     throw new Error("Error al crear alumno: " + error.message);
   }
 
+  revalidateTag(TAG.ALUMNOS);
   revalidatePath("/alumnos");
 }
 
@@ -64,6 +73,7 @@ export async function deleteAlumno(id: string) {
     throw new Error("Error al eliminar alumno: " + error.message);
   }
 
+  revalidateTag(TAG.ALUMNOS);
   revalidatePath("/alumnos");
   return { success: true };
 }
@@ -79,25 +89,28 @@ export async function updateAlumno(id: string, formData: FormData) {
     throw new Error("No autenticado");
   }
 
-  const nombre = formData.get("nombre") as string;
-  const apellido = formData.get("apellido") as string;
-  const grado = formData.get("grado") as string;
-  const notas = formData.get("notas") as string;
-  const modelo_cobro = formData.get("modelo_cobro") as string || "por_clase";
-  const tarifa_override_raw = formData.get("tarifa_override") as string;
-  const tarifa_override = tarifa_override_raw && tarifa_override_raw.trim() !== ""
-    ? parseFloat(tarifa_override_raw)
-    : null;
+  const tarifaRaw = formData.get("tarifa_override") as string | null;
+  const parsed = ActualizarAlumnoSchema.safeParse({
+    nombre: formData.get("nombre"),
+    apellido: formData.get("apellido"),
+    grado: formData.get("grado"),
+    notas: formData.get("notas") || undefined,
+    modelo_cobro: formData.get("modelo_cobro") || "por_clase",
+    tarifa_override: tarifaRaw && tarifaRaw.trim() !== "" ? tarifaRaw : null,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
 
   const { error } = await supabase
     .from("alumnos")
     .update({
-      nombre,
-      apellido,
-      grado,
-      notas: notas || null,
-      modelo_cobro,
-      tarifa_override,
+      nombre: parsed.data.nombre,
+      apellido: parsed.data.apellido,
+      grado: parsed.data.grado,
+      notas: parsed.data.notas || null,
+      modelo_cobro: parsed.data.modelo_cobro,
+      tarifa_override: parsed.data.tarifa_override,
     })
     .eq("id", id)
     .eq("maestra_id", user.id);
@@ -107,6 +120,7 @@ export async function updateAlumno(id: string, formData: FormData) {
   }
 
   revalidatePath(`/alumnos/${id}`);
+  revalidateTag(TAG.ALUMNOS);
   revalidatePath("/alumnos");
   return { success: true };
 }

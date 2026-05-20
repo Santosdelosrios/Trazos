@@ -6,6 +6,7 @@ import { UserPlus, Trash2, GraduationCap, Plus, Crown } from "lucide-react";
 import { getPlan, PLAN_LIMITS, type Plan } from "@/lib/plan";
 import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
 import SubmitButton from "@/components/ui/SubmitButton";
+import EmptyState from "@/components/ui/EmptyState";
 
 export const metadata = {
   title: "Mis Alumnos | Trazos",
@@ -212,17 +213,11 @@ export default async function AlumnosPage() {
                 ))}
               </ul>
             ) : (
-              <div className="p-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-100 text-surface-400">
-                  <GraduationCap size={32} />
-                </div>
-                <h3 className="text-lg font-medium text-surface-900">
-                  Todavía no hay alumnos
-                </h3>
-                <p className="mt-1 text-sm text-surface-500">
-                  Agregá a tu primer estudiante usando el formulario.
-                </p>
-              </div>
+              <EmptyState
+                icon={GraduationCap}
+                title="Todavía no hay alumnos"
+                description="Agregá a tu primer estudiante usando el formulario de la izquierda. Te lleva menos de un minuto."
+              />
             )}
           </div>
         </div>

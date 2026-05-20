@@ -4,7 +4,8 @@ import { useState, useMemo, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { eliminarClase } from "./actions";
-import { Search, Trash2, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Trash2, ChevronRight, Loader2, BookOpen } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 
 function safeDate(...candidates: Array<string | null | undefined>): Date | null {
   for (const value of candidates) {
@@ -103,8 +104,16 @@ export default function HistorialClient({ data }: HistorialClientProps) {
 
       {/* Empty state global */}
       {filteredData.length === 0 && (
-        <div className="rounded-2xl border border-surface-200 bg-white px-6 py-12 text-center text-surface-500 shadow-sm">
-          No se encontraron resultados para tu búsqueda.
+        <div className="rounded-2xl border border-surface-200 bg-white shadow-sm">
+          <EmptyState
+            icon={BookOpen}
+            title={search ? "Sin resultados" : "Todavía no cerraste clases"}
+            description={
+              search
+                ? "Probá con otro nombre de alumno o tema."
+                : "Las clases que cierres con ejercicios o evaluaciones aparecen acá."
+            }
+          />
         </div>
       )}
 
