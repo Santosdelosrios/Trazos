@@ -140,9 +140,42 @@ export default function TizaChat() {
       timestamp: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Mensaje del asistente vacío que iremos rellenando en streaming
+    const assistantId = crypto.randomUUID();
+    const assistantSeed: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toISOString(),
+      actions: [],
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantSeed]);
     setInput("");
     setIsLoading(true);
+
+    // Helper para actualizar el contenido del mensaje del asistente
+    const appendToken = (token: string) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + token } : m))
+      );
+    };
+
+    const appendAction = (action: ActionTaken) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, actions: [...(m.actions || []), action] }
+            : m
+        )
+      );
+    };
+
+    const replaceContent = (content: string) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content } : m))
+      );
+    };
 
     try {
       const res = await fetch("/api/asistente", {
@@ -151,37 +184,68 @@ export default function TizaChat() {
         body: JSON.stringify({ message: text.trim(), history: historyRef.current }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        const errorMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data.error || data.reply || "Hubo un error, intentá de nuevo 😅",
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, errorMsg]);
+      if (!res.ok || !res.body) {
+        // Error HTTP — intentamos leer JSON de error si vino así
+        let errorText = "Hubo un error, intentá de nuevo 😅";
+        try {
+          const data = await res.json();
+          errorText = data.error || data.reply || errorText;
+        } catch {
+          // body no era JSON
+        }
+        replaceContent(errorText);
         return;
       }
 
-      const assistantMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.reply,
-        timestamp: new Date().toISOString(),
-        actions: data.actions,
-      };
+      // Leer el stream SSE
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      setMessages((prev) => [...prev, assistantMsg]);
-      setHistory(data.history || []);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE separa eventos con doble \n
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || ""; // último puede estar incompleto
+
+        for (const event of events) {
+          const dataLine = event.split("\n").find((l) => l.startsWith("data: "));
+          if (!dataLine) continue;
+          try {
+            const payload = JSON.parse(dataLine.slice(6));
+            if (payload.type === "token") {
+              appendToken(payload.text);
+            } else if (payload.type === "action") {
+              appendAction(payload.action);
+            } else if (payload.type === "done") {
+              setHistory(payload.history || []);
+            } else if (payload.type === "error") {
+              // Si ya hubo contenido o acciones, agregamos el error como nota
+              // al final. Si no hubo nada, reemplazamos el bubble vacío.
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m;
+                  const hasContent = m.content.trim().length > 0;
+                  const hasActions = (m.actions?.length ?? 0) > 0;
+                  if (hasContent || hasActions) {
+                    return { ...m, content: m.content + (m.content ? "\n\n" : "") + (payload.reply || "") };
+                  }
+                  return { ...m, content: payload.reply || "" };
+                })
+              );
+              if (payload.history) setHistory(payload.history);
+            }
+          } catch {
+            // ignorar JSON malformado en un chunk parcial
+          }
+        }
+      }
     } catch {
-      const errorMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "Uy, no pude conectarme. ¿Tenés internet? 📡",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      replaceContent("Uy, no pude conectarme. ¿Tenés internet? 📡");
     } finally {
       setIsLoading(false);
     }
@@ -308,58 +372,65 @@ export default function TizaChat() {
           )}
 
           {/* Message bubbles */}
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in-up`}
-            >
-              <div
-                className={`
-                  max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed
-                  ${msg.role === "user"
-                    ? "bg-primary-500 text-white rounded-br-md"
-                    : "bg-white text-surface-800 rounded-bl-md border border-surface-100"
-                  }
-                `}
-                style={msg.role === "assistant" ? {
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                } : undefined}
-              >
-                {/* Message text (with WhatsApp preview support) */}
-                {renderMessageContent(msg)}
+          {messages.map((msg) => {
+            // Mensaje del asistente vacío durante streaming → mostrar typing indicator
+            const isPendingAssistant =
+              msg.role === "assistant" && msg.content === "" && (!msg.actions || msg.actions.length === 0);
 
-                {/* Actions taken (only for assistant) */}
-                {msg.actions && msg.actions.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-surface-100 space-y-1">
-                    {msg.actions.map((action: ActionTaken, i: number) => (
-                      <div key={i} className="flex items-center gap-1.5 text-xs">
-                        {action.success ? (
-                          <CheckCircle2 size={12} className="text-success-500 shrink-0" />
-                        ) : (
-                          <AlertCircle size={12} className="text-danger-500 shrink-0" />
-                        )}
-                        <span className="text-surface-500">{action.summary}</span>
-                      </div>
-                    ))}
+            if (isPendingAssistant) {
+              return (
+                <div key={msg.id} className="flex justify-start animate-fade-in-up">
+                  <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 border border-surface-100 flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                    <span className="text-xs text-surface-400">Tiza está pensando…</span>
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* Typing indicator */}
-          {isLoading && (
-            <div className="flex justify-start animate-fade-in-up">
-              <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 border border-surface-100 flex items-center gap-2">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
-                <span className="text-xs text-surface-400">Tiza está pensando…</span>
+              );
+            }
+
+            return (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in-up`}
+              >
+                <div
+                  className={`
+                    max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed
+                    ${msg.role === "user"
+                      ? "bg-primary-500 text-white rounded-br-md"
+                      : "bg-white text-surface-800 rounded-bl-md border border-surface-100"
+                    }
+                  `}
+                  style={msg.role === "assistant" ? {
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                  } : undefined}
+                >
+                  {/* Actions taken (only for assistant) — arriba para feedback inmediato durante streaming */}
+                  {msg.role === "assistant" && msg.actions && msg.actions.length > 0 && (
+                    <div className="mb-2 pb-2 border-b border-surface-100 space-y-1">
+                      {msg.actions.map((action: ActionTaken, i: number) => (
+                        <div key={i} className="flex items-center gap-1.5 text-xs">
+                          {action.success ? (
+                            <CheckCircle2 size={12} className="text-success-500 shrink-0" />
+                          ) : (
+                            <AlertCircle size={12} className="text-danger-500 shrink-0" />
+                          )}
+                          <span className="text-surface-500">{action.summary}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Message text (with WhatsApp preview support) */}
+                  {renderMessageContent(msg)}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })}
 
           <div ref={messagesEndRef} />
         </div>
