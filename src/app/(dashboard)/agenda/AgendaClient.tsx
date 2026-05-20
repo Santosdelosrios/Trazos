@@ -38,6 +38,7 @@ import {
   getWeekDays,
   isSameDay,
   formatDateKey,
+  formatFechaDiaMes,
 } from "@/lib/utils/fechas";
 
 const PlanificarModal = dynamic(() => import("./modals/PlanificarModal"), { ssr: false });
@@ -422,7 +423,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-[10px] font-bold text-surface-400">
-                      {new Date(clase.fecha).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                      {formatFechaDiaMes(clase.fecha)}
                     </span>
                     {!clase.pago ? (
                       <span className="text-[10px] font-bold text-surface-400 bg-surface-100 px-2 py-0.5 rounded-full">Sin registro</span>

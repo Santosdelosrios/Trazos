@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatFechaLarga } from "@/lib/utils/fechas";
 import PagoEditor from "./PagoEditor";
 
 export const metadata = {
@@ -100,7 +101,7 @@ export default async function DetalleClasePage({
                 {alumno.nombre} {alumno.apellido}
               </Link>
               <span>·</span>
-              <span>{new Date(clase.fecha).toLocaleDateString("es-AR", { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+              <span>{formatFechaLarga(clase.fecha)}</span>
             </p>
           </div>
         </div>

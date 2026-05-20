@@ -120,6 +120,7 @@ export default function MateriasManager({
                     disabled={isPending}
                     className="p-1.5 rounded-lg text-danger-400 hover:bg-danger-50 hover:text-danger-600 transition-colors disabled:opacity-50"
                     title="Eliminar"
+                    aria-label={`Eliminar materia ${m.nombre}`}
                   >
                     <X size={14} />
                   </button>

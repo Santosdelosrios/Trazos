@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { Star } from "lucide-react";
+import { Star, Trophy } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 
 interface HitoItem {
   id: string;
@@ -95,8 +96,12 @@ export default function HitosClient({ data, alumnos }: HitosClientProps) {
       {/* Timeline Feed */}
       <div className="relative space-y-8 before:absolute before:left-6 before:top-2 before:h-[calc(100%-16px)] before:w-0.5 before:bg-surface-100">
         {filteredData.length === 0 ? (
-          <div className="ml-12 rounded-2xl border border-dashed border-surface-300 p-12 text-center">
-            <p className="text-surface-500">No hay hitos que coincidan con los filtros.</p>
+          <div className="ml-12 rounded-2xl border border-dashed border-surface-300">
+            <EmptyState
+              icon={Trophy}
+              title="No hay hitos que coincidan"
+              description="Probá cambiar los filtros, o cerrá una clase para registrar el primer hito de aprendizaje."
+            />
           </div>
         ) : (
           filteredData.map((hito) => {

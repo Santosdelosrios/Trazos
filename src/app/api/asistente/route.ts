@@ -6,13 +6,27 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plan";
-import { GoogleGenerativeAI, type FunctionDeclaration } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  type FunctionDeclaration,
+  FunctionCallingMode,
+} from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 import { buildAsistenteSystemPrompt } from "@/lib/asistente/system-prompt";
 import { TOOL_DECLARATIONS } from "@/lib/asistente/tools";
 import { executeTool } from "@/lib/asistente/executor";
 import type { ActionTaken, AsistenteRequest, GeminiHistoryEntry } from "@/lib/asistente/types";
+
+// Allowlist de nombres de funciones que Gemini puede invocar. Doble seguro
+// contra alucinación de tools — el executor ya filtra, pero acá nos
+// aseguramos que el modelo ni siquiera vea otras opciones.
+const ALLOWED_TOOL_NAMES = TOOL_DECLARATIONS.map((t) => t.name);
+
+// Límites duros sobre el input del cliente para mitigar prompt injection
+// por payload exagerado o flooding.
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_HISTORY_ENTRIES = 40; // hard cap; luego trimeamos a HISTORY_WINDOW
 
 // Edge runtime: cold start ~50ms vs ~1s en Node. La autenticación
 // (Supabase via @supabase/ssr) y Gemini (fetch nativo) son edge-compatible.
@@ -68,10 +82,34 @@ export async function POST(request: Request) {
   if (bodyResult.status !== "fulfilled") {
     return NextResponse.json({ error: "Request inválido" }, { status: 400 });
   }
-  const { message, history = [] } = bodyResult.value;
+  const { message, history: rawHistory = [] } = bodyResult.value;
 
+  // ===== Validación defensiva del input =====
   if (!message || typeof message !== "string" || message.trim().length === 0) {
     return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
+  }
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json(
+      { error: `Mensaje demasiado largo (máx ${MAX_MESSAGE_LENGTH} caracteres)` },
+      { status: 400 }
+    );
+  }
+
+  // ===== Sanitización del history venido del cliente =====
+  // El cliente reenvía el history que le devolvimos antes vía SSE. No
+  // confiamos: validamos estructura, descartamos roles inválidos y
+  // capeamos el tamaño total antes de cualquier otro procesamiento.
+  let history: GeminiHistoryEntry[] = [];
+  if (Array.isArray(rawHistory)) {
+    history = rawHistory
+      .slice(-MAX_HISTORY_ENTRIES)
+      .filter((entry: unknown): entry is GeminiHistoryEntry => {
+        if (!entry || typeof entry !== "object") return false;
+        const e = entry as { role?: unknown; parts?: unknown };
+        if (e.role !== "user" && e.role !== "model") return false;
+        if (!Array.isArray(e.parts)) return false;
+        return true;
+      });
   }
 
   // Verificar Premium (paralelizado conceptualmente con el resto del setup)
@@ -115,7 +153,22 @@ export async function POST(request: Request) {
           model: "gemini-3.5-flash",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+          // toolConfig en modo AUTO con allowedFunctionNames le dice al modelo
+          // que SOLO puede invocar funciones de esta lista. Defensa en
+          // profundidad: aunque el modelo intente "alucinar" un nombre nuevo,
+          // la API rechaza antes de llegar a nuestro executor.
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingMode.AUTO,
+              allowedFunctionNames: ALLOWED_TOOL_NAMES,
+            },
+          },
+          generationConfig: {
+            // temperatura baja → respuestas más predecibles y menos
+            // propensas a salirse del scope.
+            temperature: 0.3,
+            maxOutputTokens: 1024,
+          },
         });
 
         const chat = model.startChat({

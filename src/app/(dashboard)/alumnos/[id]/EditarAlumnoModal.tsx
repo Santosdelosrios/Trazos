@@ -80,6 +80,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
               <button
                 onClick={() => setIsOpen(false)}
                 className="rounded-xl p-2 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors"
+                aria-label="Cerrar"
               >
                 <X size={20} />
               </button>

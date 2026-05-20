@@ -9,6 +9,7 @@ import FormNuevoGasto from "./FormNuevoGasto";
 import { Package, RefreshCw } from "lucide-react";
 import { CategoriaGastoIcon } from "@/components/ui/CategoriaGastoIcon";
 import BotonEliminarGasto from "@/components/finanzas/BotonEliminarGasto";
+import EmptyState from "@/components/ui/EmptyState";
 
 export const metadata = {
   title: "Gastos | Trazos",
@@ -61,11 +62,12 @@ export default async function GastosPage() {
 
       {/* Lista de gastos */}
       {!gastos || gastos.length === 0 ? (
-        <div className="rounded-2xl border border-surface-200 bg-white p-12 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-surface-100 text-surface-400">
-            <Package size={32} />
-          </div>
-          <p className="text-sm text-surface-500">No hay gastos registrados.</p>
+        <div className="rounded-2xl border border-surface-200 bg-white shadow-sm">
+          <EmptyState
+            icon={Package}
+            title="No hay gastos registrados"
+            description="Anotá tus costos operativos (material, viáticos, plataformas) para que la ganancia neta del mes refleje la realidad."
+          />
         </div>
       ) : (
         <div className="rounded-2xl border border-surface-200 bg-white shadow-sm overflow-hidden">

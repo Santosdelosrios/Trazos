@@ -109,3 +109,117 @@ export const ActualizarDuracionSchema = z.object({
   duracion_estimada: z.coerce.number().min(0.25, "La duración mínima es 15 min.").max(12, "La duración máxima es 12 horas."),
 });
 
+// ------------------------------------------------------------
+// Schemas: Alumnos
+// ------------------------------------------------------------
+
+export const ModeloCobroSchema = z.enum([
+  "por_clase",
+  "bolsa_creditos",
+  "abono_mensual",
+  "cuenta_corriente",
+]);
+
+const NOMBRE_REGEX = /^[\p{L}\p{M} '\-]+$/u;
+
+const NombreSchema = z
+  .string()
+  .min(1, "El nombre es obligatorio.")
+  .max(60, "El nombre no puede superar los 60 caracteres.")
+  .regex(NOMBRE_REGEX, "El nombre solo puede contener letras, espacios y guiones.");
+
+const ApellidoSchema = z
+  .string()
+  .min(1, "El apellido es obligatorio.")
+  .max(60, "El apellido no puede superar los 60 caracteres.")
+  .regex(NOMBRE_REGEX, "El apellido solo puede contener letras, espacios y guiones.");
+
+export const CrearAlumnoSchema = z.object({
+  nombre: NombreSchema,
+  apellido: ApellidoSchema,
+  grado: NivelSchema,
+  notas: z.string().max(500, "Las notas no pueden superar los 500 caracteres.").optional(),
+});
+
+export const ActualizarAlumnoSchema = z.object({
+  nombre: NombreSchema,
+  apellido: ApellidoSchema,
+  grado: NivelSchema,
+  notas: z.string().max(500).optional().nullable(),
+  modelo_cobro: ModeloCobroSchema,
+  tarifa_override: z.coerce.number().min(0, "La tarifa no puede ser negativa.").nullable().optional(),
+});
+
+export type CrearAlumnoInput = z.infer<typeof CrearAlumnoSchema>;
+export type ActualizarAlumnoInput = z.infer<typeof ActualizarAlumnoSchema>;
+
+// ------------------------------------------------------------
+// Schemas: Finanzas
+// ------------------------------------------------------------
+
+export const EstadoPagoSchema = z.enum(["pendiente", "pagado", "parcial"]);
+
+export const CategoriaGastoSchema = z.enum([
+  "viatico",
+  "material",
+  "plataforma",
+  "impuesto",
+  "otro",
+]);
+
+const MontoSchema = z.coerce
+  .number()
+  .positive("El monto debe ser mayor a 0.")
+  .max(10_000_000, "El monto excede el límite permitido.");
+
+export const RegistrarPagoSchema = z.object({
+  alumno_id: z.string().uuid("ID de alumno inválido."),
+  monto: MontoSchema,
+  estado: EstadoPagoSchema,
+  fecha_pago: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  nota: z.string().max(300).optional(),
+  periodo: z.string().regex(/^\d{4}-\d{2}$/, "Formato de período inválido (YYYY-MM).").optional(),
+});
+
+export const CargarCreditosSchema = z.object({
+  alumno_id: z.string().uuid("ID de alumno inválido."),
+  creditos: z.coerce.number().int().min(1, "Mínimo 1 crédito.").max(100, "Máximo 100 créditos."),
+  monto: MontoSchema,
+  nota: z.string().max(300).optional(),
+});
+
+export const RegistrarPagoCuentaCorrienteSchema = z.object({
+  alumno_id: z.string().uuid("ID de alumno inválido."),
+  monto: MontoSchema,
+  nota: z.string().max(300).optional(),
+});
+
+export const RegistrarGastoSchema = z.object({
+  categoria: CategoriaGastoSchema,
+  descripcion: z.string().max(200).optional(),
+  monto: MontoSchema,
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
+  recurrente: z.boolean().optional().default(false),
+});
+
+export const GuardarTarifaSchema = z.object({
+  valor_hora: z.coerce
+    .number()
+    .positive("La tarifa debe ser mayor a 0.")
+    .max(10_000_000, "Tarifa excesivamente alta."),
+});
+
+export type RegistrarPagoInput = z.infer<typeof RegistrarPagoSchema>;
+export type CargarCreditosInput = z.infer<typeof CargarCreditosSchema>;
+export type RegistrarGastoInput = z.infer<typeof RegistrarGastoSchema>;
+export type GuardarTarifaInput = z.infer<typeof GuardarTarifaSchema>;
+
+// ------------------------------------------------------------
+// Schemas: Perfil
+// ------------------------------------------------------------
+
+export const ActualizarPerfilSchema = z.object({
+  nombre: NombreSchema,
+});
+
+export type ActualizarPerfilInput = z.infer<typeof ActualizarPerfilSchema>;

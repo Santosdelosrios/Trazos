@@ -5,8 +5,15 @@ import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
 import AgendaDiaWidget from "@/components/dashboard/AgendaDiaWidget";
 import TutorialPrimerosPasos from "@/components/dashboard/TutorialPrimerosPasos";
 import ClaseEnVivoWidget from "@/components/dashboard/ClaseEnVivoWidget";
-import type { ResumenFinancieroMes } from "@/lib/types/database";
 import { getTodayKeyAR } from "@/lib/utils/fechas";
+import {
+  getAlumnosBasicos,
+  getClasesDelMes,
+  getEvaluacionStats,
+  getAgendaPendiente,
+  getResumenFinanciero,
+  getNombreMaestra,
+} from "@/lib/db/queries";
 import {
   GraduationCap,
   BookOpen,
@@ -33,86 +40,33 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // 2. Clases este mes
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
   const todayStr = getTodayKeyAR();
 
-  // Parallelize all data fetching
+  // Todas las queries paralelizadas usando la capa lib/db/queries
+  // (cada una con React.cache() para dedup en mismo request)
   const [
-    { data: alumnosData },
-    { count: clasesMes },
-    { data: statsData },
-    { data: agendaHoy },
-    { data: resumenFinData },
-    { data: maestraData }
+    alumnosData,
+    clasesMes,
+    stats,
+    proximasClases,
+    resumenFinanciero,
+    nombreMaestraDB,
   ] = await Promise.all([
-    supabase
-      .from("alumnos")
-      .select("id, nombre, apellido")
-      .eq("maestra_id", user.id)
-      .order("nombre"),
-    
-    supabase
-      .from("clases")
-      .select("*", { count: "exact", head: true })
-      .eq("maestra_id", user.id)
-      .gte("fecha", startOfMonth.toISOString()),
-
-    supabase
-      .from("clase_alumnos")
-      .select("nota, autoevaluacion, clases!inner(maestra_id)")
-      .eq("clases.maestra_id", user.id)
-      .not("nota", "is", null),
-
-    supabase
-      .from("agenda")
-      .select(`
-        id, fecha, hora, tema_previsto, materia, alumno_id, duracion_estimada, estado,
-        alumnos!inner(id, nombre, apellido)
-      `)
-      .eq("maestra_id", user.id)
-      .eq("estado", "pendiente")
-      .order("fecha", { ascending: true })
-      .order("hora", { ascending: true }),
-
-    supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
-
-    supabase
-      .from("maestras")
-      .select("nombre")
-      .eq("id", user.id)
-      .maybeSingle()
+    getAlumnosBasicos(user.id),
+    getClasesDelMes(user.id, startOfMonth.toISOString()),
+    getEvaluacionStats(user.id),
+    getAgendaPendiente(user.id),
+    getResumenFinanciero(user.id),
+    getNombreMaestra(user.id),
   ]);
 
-  const nombreMaestra = maestraData?.nombre || user.user_metadata?.nombre || "Profe";
-  const resumenFinanciero: ResumenFinancieroMes | null = resumenFinData?.[0] ?? null;
-  const totalAlumnos = alumnosData?.length ?? 0;
-
-  let promedioGeneral = "—";
-  let tasaComprension = "—";
-
-  if (statsData && statsData.length > 0) {
-    const notasValidas = statsData
-      .map((d: { nota: number | null }) => d.nota)
-      .filter((n): n is number => n !== null);
-    if (notasValidas.length > 0) {
-      const sum = notasValidas.reduce((a: number, b: number) => a + b, 0);
-      promedioGeneral = (sum / notasValidas.length).toFixed(1);
-    }
-
-    const autoevalValidas = statsData
-      .map((d: { autoevaluacion: number | null }) => d.autoevaluacion)
-      .filter((a): a is number => a !== null);
-    if (autoevalValidas.length > 0) {
-      const altas = autoevalValidas.filter((a: number) => a >= 3).length;
-      tasaComprension = Math.round((altas / autoevalValidas.length) * 100) + "%";
-    }
-  }
-
-  const proximasClases = agendaHoy || [];
+  const nombreMaestra = nombreMaestraDB || user.user_metadata?.nombre || "Profe";
+  const totalAlumnos = alumnosData.length;
+  const { promedioGeneral, tasaComprension } = stats;
   const clasesHoy = proximasClases.filter(i => i.fecha === todayStr);
   const numClasesHoy = clasesHoy.length;
   const subtitulo = numClasesHoy > 0
@@ -122,7 +76,7 @@ export default async function DashboardPage() {
   const onboardingProgress = {
     hasAlumnos: totalAlumnos > 0,
     hasAgenda: proximasClases.length > 0,
-    hasClaseCerrada: (statsData?.length ?? 0) > 0,
+    hasClaseCerrada: promedioGeneral !== "—",
     hasCobro: (resumenFinanciero?.ingresos_mes ?? 0) > 0,
   };
   const onboardingComplete = Object.values(onboardingProgress).every(Boolean);

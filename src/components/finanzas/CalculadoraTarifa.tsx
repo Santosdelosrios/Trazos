@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from "react";
 import { guardarTarifa } from "@/app/(dashboard)/finanzas/actions";
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import { Calculator, Banknote, CheckCircle2 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface Props {
   tarifaActual?: number | null;
@@ -16,6 +17,7 @@ export default function CalculadoraTarifa({ tarifaActual }: Props) {
   const [gananciaDeseada, setGananciaDeseada] = useState(150000);
   const [valorHora, setValorHora] = useState(tarifaActual ?? 0);
   const [guardado, setGuardado] = useState(false);
+  const toast = useToast();
 
   const clasesMensuales = useMemo(() => clasesSemanales * 4, [clasesSemanales]);
   const valorSugerido = useMemo(
@@ -33,9 +35,12 @@ export default function CalculadoraTarifa({ tarifaActual }: Props) {
       try {
         await guardarTarifa({ valor_hora: valorHora });
         setGuardado(true);
+        toast.success(`Tarifa actualizada: ${formatearMonto(valorHora)}/hora`);
         setTimeout(() => setGuardado(false), 3000);
       } catch (err) {
         console.error("Error al guardar tarifa:", err);
+        const msg = err instanceof Error ? err.message : "No se pudo guardar la tarifa";
+        toast.error(msg);
       }
     });
   }

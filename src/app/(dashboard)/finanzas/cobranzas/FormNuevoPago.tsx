@@ -7,6 +7,7 @@ import type { EstadoPago, ModeloCobro } from "@/lib/types/database";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 import { Plus, Save, Ticket, BookOpen, Wallet } from "lucide-react";
 import FormField, { FIELD_INPUT_CLASS, FIELD_INPUT_CLASS_PLAIN } from "@/components/ui/FormField";
+import { useToast } from "@/components/ui/Toast";
 
 interface AlumnoOption {
   id: string;
@@ -34,6 +35,7 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
   const selectedAlumno = alumnos.find(a => a.id === alumnoId);
   const modelo = selectedAlumno?.modelo_cobro || "por_clase";
   const modeloConfig = MODELO_COBRO_CONFIG[modelo];
+  const toast = useToast();
 
   function resetForm() {
     setAlumnoId("");
@@ -92,9 +94,16 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
             });
             break;
         }
+        toast.success(
+          modelo === "bolsa_creditos"
+            ? `Pack de ${creditos} créditos cargado por ${formatearMonto(monto)}`
+            : `Cobro registrado por ${formatearMonto(monto)}`
+        );
         resetForm();
       } catch (err) {
         console.error("Error al registrar pago:", err);
+        const msg = err instanceof Error ? err.message : "No se pudo registrar el cobro";
+        toast.error(msg);
       }
     });
   }

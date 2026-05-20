@@ -5,6 +5,7 @@ import { registrarGasto } from "@/app/(dashboard)/finanzas/actions";
 import type { CategoriaGasto } from "@/lib/types/database";
 import { Plus, Save } from "lucide-react";
 import FormField, { FIELD_INPUT_CLASS, FIELD_INPUT_CLASS_PLAIN } from "@/components/ui/FormField";
+import { useToast } from "@/components/ui/Toast";
 
 export default function FormNuevoGasto() {
   const [isPending, startTransition] = useTransition();
@@ -14,6 +15,7 @@ export default function FormNuevoGasto() {
   const [monto, setMonto] = useState(0);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [recurrente, setRecurrente] = useState(false);
+  const toast = useToast();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,12 +30,15 @@ export default function FormNuevoGasto() {
           fecha,
           recurrente,
         });
+        toast.success(`Gasto registrado por $${monto.toLocaleString("es-AR")}`);
         setDescripcion("");
         setMonto(0);
         setRecurrente(false);
         setOpen(false);
       } catch (err) {
         console.error("Error al registrar gasto:", err);
+        const msg = err instanceof Error ? err.message : "No se pudo registrar el gasto";
+        toast.error(msg);
       }
     });
   }
