@@ -3,6 +3,8 @@
 // Cada función recibe el client autenticado + maestraId (RLS)
 // ============================================================
 
+// NOTA: este módulo solo debe importarse desde route handlers. Ejecuta
+// queries directas a Supabase con maestraId; no debe llegar al cliente.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolResult } from "./types";
 
