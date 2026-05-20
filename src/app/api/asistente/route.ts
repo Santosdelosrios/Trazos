@@ -122,30 +122,35 @@ export async function POST(request: Request) {
           history: trimmedHistory.length > 0 ? trimmedHistory : undefined,
         });
 
-        // Estrategia híbrida:
-        // - Primer turno: sendMessageStream (token-by-token streaming si no hay tools)
-        // - Iteraciones con tool responses: sendMessage (non-stream) por estabilidad
-        //   del SDK con function response submission
-        // - Texto final tras tools: emitido como un único evento "token"
+        // Usamos sendMessage (no-stream) en TODOS los turnos para garantizar
+        // coherencia del historial interno del SDK. Mezclar sendMessageStream
+        // con sendMessage en la misma Chat instancia hace que el function_call
+        // del modelo no se registre a tiempo en el historial, y Gemini devuelve
+        // 400 "function response turn must come immediately after function call".
+        //
+        // La respuesta final se emite como un único evento "token" — perdemos
+        // streaming token-by-token pero mantenemos action chips en vivo.
         type FunctionResponsePart = { functionResponse: { name: string; response: unknown } };
         let totalTextEmitted = "";
 
-        // PASO 1: primer mensaje con streaming
-        const { stream: firstStream, response: firstResponsePromise } = await chat.sendMessageStream(message);
-
-        for await (const chunk of firstStream) {
-          const text = chunk.text();
-          if (text) {
-            totalTextEmitted += text;
-            controller.enqueue(sse({ type: "token", text }));
-          }
-        }
-
-        let lastResponse = await firstResponsePromise;
+        let lastResponse = (await chat.sendMessage(message)).response;
         let calls = lastResponse.functionCalls();
         let iterations = 0;
 
-        // PASO 2: si hubo function calls, loop con sendMessage (non-stream)
+        // Emitir texto del primer turno si no hubo function calls
+        if (!calls || calls.length === 0) {
+          try {
+            const text = lastResponse.text();
+            if (text) {
+              totalTextEmitted += text;
+              controller.enqueue(sse({ type: "token", text }));
+            }
+          } catch {
+            // sin texto
+          }
+        }
+
+        // Loop de function calling
         while (calls && calls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
           const responses: FunctionResponsePart[] = [];
           for (const call of calls) {
@@ -169,14 +174,11 @@ export async function POST(request: Request) {
             });
           }
 
-          // sendMessage (non-stream): más estable que sendMessageStream para
-          // function response submission. La respuesta llega completa de una.
           const next = await chat.sendMessage(
             responses as unknown as Parameters<typeof chat.sendMessage>[0]
           );
           lastResponse = next.response;
 
-          // Emitir el texto de esta iteración (si lo hay) como un único token
           let chunkText = "";
           try {
             chunkText = lastResponse.text();
@@ -205,17 +207,12 @@ export async function POST(request: Request) {
 
         close("done", { history: updatedHistory });
       } catch (error: unknown) {
-        // Logging detallado para diagnosticar errores de Gemini
         const errMsg = error instanceof Error ? error.message : String(error);
         const errStack = error instanceof Error ? error.stack : undefined;
         console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
 
-        // TEMPORAL: exponemos el error real al cliente para diagnosticar
-        // el 400 BadRequest de Gemini. Quitar una vez resuelto.
-        const replyText = `⚠️ Error técnico (debug): ${errMsg.slice(0, 500)}`;
-
         close("error", {
-          reply: replyText,
+          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
           history,
         });
       }
