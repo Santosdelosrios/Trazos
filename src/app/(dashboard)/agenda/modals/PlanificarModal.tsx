@@ -95,7 +95,11 @@ export default function PlanificarModal({
               <p className="text-[10px] font-medium text-surface-500">Paso {step} de 2</p>
             </div>
           </div>
-          <button onClick={handleClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
+          <button
+            onClick={handleClose}
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors"
+            aria-label="Cerrar"
+          >
             <X size={20} />
           </button>
         </div>

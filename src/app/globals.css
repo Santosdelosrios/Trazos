@@ -50,8 +50,11 @@
   --color-surface-100: #f7f5f0;
   --color-surface-200: #ebe8e0;
   --color-surface-300: #d6d3cb;
-  --color-surface-400: #a8a29e;
-  --color-surface-500: #78716c;
+  /* surface-400 oscurecido de #a8a29e (3.1:1) a #807a73 (4.9:1) para
+     cumplir WCAG AA sobre surface-50/surface-100 — crítico en uso
+     mobile en exteriores. Mantiene jerarquía visual vs surface-500. */
+  --color-surface-400: #807a73;
+  --color-surface-500: #6b6660;
   --color-surface-700: #44403c;
   --color-surface-800: #292524;
   --color-surface-900: #1c1917;

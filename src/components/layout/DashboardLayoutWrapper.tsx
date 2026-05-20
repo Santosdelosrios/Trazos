@@ -32,6 +32,9 @@ export default function DashboardLayoutWrapper({
         <div
           className="fixed inset-0 z-30 bg-surface-900/20 backdrop-blur-sm md:hidden"
           onClick={() => setIsSidebarOpen(false)}
+          role="button"
+          tabIndex={-1}
+          aria-label="Cerrar menú lateral"
         />
       )}
 

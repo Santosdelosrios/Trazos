@@ -56,7 +56,11 @@ export default function EditarClaseModal({
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-scale-up border border-surface-100">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-surface-900">Editar Clase</h2>
-          <button onClick={onClose} className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors">
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors"
+            aria-label="Cerrar"
+          >
             <X size={20} />
           </button>
         </div>
