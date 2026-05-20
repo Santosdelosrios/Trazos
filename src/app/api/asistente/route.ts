@@ -12,12 +12,39 @@ import { NextResponse } from "next/server";
 import { buildAsistenteSystemPrompt } from "@/lib/asistente/system-prompt";
 import { TOOL_DECLARATIONS } from "@/lib/asistente/tools";
 import { executeTool } from "@/lib/asistente/executor";
-import type { ActionTaken, AsistenteRequest } from "@/lib/asistente/types";
+import type { ActionTaken, AsistenteRequest, GeminiHistoryEntry } from "@/lib/asistente/types";
 
+// Edge runtime: cold start ~50ms vs ~1s en Node. La autenticación
+// (Supabase via @supabase/ssr) y Gemini (fetch nativo) son edge-compatible.
+export const runtime = "edge";
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // Máximo de iteraciones del loop de function calling (seguridad)
 const MAX_TOOL_ITERATIONS = 8;
+
+// Ventana de contexto: últimos N turnos enviados a Gemini.
+// Cada "turno" en el historial es 1 entry (user o model). 20 entries ≈ 10 intercambios.
+const HISTORY_WINDOW = 20;
+
+/**
+ * Trimea el historial al final manteniendo coherencia:
+ * - Empieza siempre en un turno "user" (Gemini lo requiere)
+ * - No corta a mitad de un par function_call/function_response
+ */
+function trimHistory(history: GeminiHistoryEntry[]): GeminiHistoryEntry[] {
+  if (history.length <= HISTORY_WINDOW) return history;
+
+  const trimmed = history.slice(-HISTORY_WINDOW);
+
+  // Avanzar hasta encontrar el primer turno "user" (Gemini exige que el
+  // historial empiece con user, no model)
+  while (trimmed.length > 0 && trimmed[0].role !== "user") {
+    trimmed.shift();
+  }
+
+  return trimmed;
+}
 
 function getGenAI(): GoogleGenerativeAI {
   const key = process.env.GEMINI_API_KEY;
@@ -26,17 +53,28 @@ function getGenAI(): GoogleGenerativeAI {
 }
 
 export async function POST(request: Request) {
-  // 1. Autenticar
+  // Parseamos el body en paralelo con la autenticación
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [authResult, bodyResult] = await Promise.allSettled([
+    supabase.auth.getUser(),
+    request.json() as Promise<AsistenteRequest>,
+  ]);
 
-  if (!user) {
+  if (authResult.status !== "fulfilled" || !authResult.value.data.user) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
+  const user = authResult.value.data.user;
 
-  // 2. Verificar Premium
+  if (bodyResult.status !== "fulfilled") {
+    return NextResponse.json({ error: "Request inválido" }, { status: 400 });
+  }
+  const { message, history = [] } = bodyResult.value;
+
+  if (!message || typeof message !== "string" || message.trim().length === 0) {
+    return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
+  }
+
+  // Verificar Premium (paralelizado conceptualmente con el resto del setup)
   const plan = await getPlan(supabase, user.id);
   if (plan !== "premium") {
     return NextResponse.json(
@@ -45,111 +83,127 @@ export async function POST(request: Request) {
     );
   }
 
-  // 3. Parsear request
-  let body: AsistenteRequest;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Request inválido" }, { status: 400 });
-  }
+  // Ventana de contexto: solo últimos N turnos para que el payload no crezca
+  // linealmente con la conversación.
+  const trimmedHistory = trimHistory(history);
 
-  const { message, history = [] } = body;
+  // Construcción del SSE stream. Cada línea es un evento JSON.
+  // Eventos:
+  //   { type: "action", action: ActionTaken }   → tool ejecutado
+  //   { type: "token", text: string }            → chunk de texto
+  //   { type: "done", history, actions }         → cierre normal
+  //   { type: "error", reply, history, actions } → cierre con error
+  const encoder = new TextEncoder();
+  const sse = (obj: unknown) => encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
 
-  if (!message || typeof message !== "string" || message.trim().length === 0) {
-    return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
-  }
+  const stream = new ReadableStream({
+    async start(controller) {
+      const actionsTaken: ActionTaken[] = [];
 
-  try {
-    // 4. Iniciar modelo con tools
-    const genAI = getGenAI();
+      const close = (eventType: "done" | "error", extra: Record<string, unknown>) => {
+        try {
+          controller.enqueue(sse({ type: eventType, actions: actionsTaken, ...extra }));
+        } catch {
+          // ignore
+        }
+        controller.close();
+      };
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite", // Usando Gemini 3.1 Flash Lite (15 RPM)
-      systemInstruction: buildAsistenteSystemPrompt(),
-      tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1024,
-      },
-    });
-
-    // 5. Iniciar chat con historial previo
-    const chat = model.startChat({
-      history: history.length > 0 ? history : undefined,
-    });
-
-    // 6. Enviar mensaje del usuario
-    let result = await chat.sendMessage(message);
-    const actionsTaken: ActionTaken[] = [];
-
-    // 7. Loop de function calling
-    let iterations = 0;
-    while (iterations < MAX_TOOL_ITERATIONS) {
-      const calls = result.response.functionCalls();
-      if (!calls || calls.length === 0) break;
-
-      console.log(`🔧 Tiza ejecutando ${calls.length} tool(s) — iteración ${iterations + 1}`);
-
-      const responses = [];
-      for (const call of calls) {
-        console.log(`  → ${call.name}(${JSON.stringify(call.args)})`);
-
-        const toolResult = await executeTool(
-          call.name,
-          call.args as Record<string, unknown>,
-          supabase,
-          user.id
-        );
-
-        actionsTaken.push({
-          tool: call.name,
-          summary: toolResult.summary,
-          success: toolResult.success,
+      try {
+        const genAI = getGenAI();
+        const model = genAI.getGenerativeModel({
+          model: "gemini-3.1-flash-lite",
+          systemInstruction: buildAsistenteSystemPrompt(),
+          tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
         });
 
-        responses.push({
-          functionResponse: {
-            name: call.name,
-            response: toolResult.data,
-          },
+        const chat = model.startChat({
+          history: trimmedHistory.length > 0 ? trimmedHistory : undefined,
+        });
+
+        // Loop: usamos sendMessageStream y vamos forwardeando tokens al
+        // cliente apenas llegan. Si el response final tiene function calls,
+        // los resolvemos y volvemos a streamear.
+        type FunctionResponsePart = { functionResponse: { name: string; response: unknown } };
+        let currentInput: string | FunctionResponsePart[] = message;
+        let iterations = 0;
+        let totalTextEmitted = "";
+
+        while (iterations <= MAX_TOOL_ITERATIONS) {
+          const { stream: geminiStream, response: finalResponsePromise } = await chat.sendMessageStream(
+            currentInput as Parameters<typeof chat.sendMessageStream>[0]
+          );
+
+          for await (const chunk of geminiStream) {
+            const text = chunk.text();
+            if (text) {
+              totalTextEmitted += text;
+              controller.enqueue(sse({ type: "token", text }));
+            }
+          }
+
+          const finalResponse = await finalResponsePromise;
+          const calls = finalResponse.functionCalls();
+
+          if (!calls || calls.length === 0) {
+            break;
+          }
+
+          const responses: FunctionResponsePart[] = [];
+          for (const call of calls) {
+            const toolResult = await executeTool(
+              call.name,
+              call.args as Record<string, unknown>,
+              supabase,
+              user.id
+            );
+
+            const action: ActionTaken = {
+              tool: call.name,
+              summary: toolResult.summary,
+              success: toolResult.success,
+            };
+            actionsTaken.push(action);
+            controller.enqueue(sse({ type: "action", action }));
+
+            responses.push({
+              functionResponse: { name: call.name, response: toolResult.data },
+            });
+          }
+
+          currentInput = responses;
+          iterations++;
+        }
+
+        const updatedHistory = await chat.getHistory();
+
+        // Fallback: si no salió ningún texto (ej: se cortó por MAX_TOOL_ITERATIONS)
+        if (!totalTextEmitted) {
+          const fallback =
+            iterations > MAX_TOOL_ITERATIONS
+              ? "Hice varias cosas, pero el proceso fue largo. Por favor revisá si todo quedó bien 😅"
+              : "Listo. ¿Te ayudo con algo más?";
+          controller.enqueue(sse({ type: "token", text: fallback }));
+        }
+
+        close("done", { history: updatedHistory });
+      } catch (error: unknown) {
+        console.error("❌ Error en agente Tiza:", error);
+        close("error", {
+          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
+          history,
         });
       }
+    },
+  });
 
-      // Enviar resultados de vuelta a Gemini
-      result = await chat.sendMessage(responses);
-      iterations++;
-    }
-
-    // 8. Obtener historial actualizado
-    const updatedHistory = await chat.getHistory();
-
-    // 9. Retornar respuesta
-    let replyText = "";
-    try {
-      replyText = result.response.text();
-    } catch {
-      if (iterations >= MAX_TOOL_ITERATIONS) {
-        replyText = "Hice varias cosas, pero el proceso fue largo. Por favor revisá si todo quedó bien 😅";
-      } else {
-        replyText = "Listo. ¿Te ayudo con algo más?";
-      }
-    }
-
-    return NextResponse.json({
-      reply: replyText,
-      history: updatedHistory,
-      actions: actionsTaken,
-    });
-  } catch (error: unknown) {
-    console.error("❌ Error en agente Tiza:", error);
-    return NextResponse.json(
-      {
-        reply:
-          "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
-        history,
-        actions: [],
-      },
-      { status: 500 }
-    );
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no", // deshabilita buffering en proxies
+    },
+  });
 }
