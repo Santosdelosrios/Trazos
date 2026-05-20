@@ -48,7 +48,7 @@ export async function createAlumno(formData: FormData) {
     throw new Error("Error al crear alumno: " + error.message);
   }
 
-  revalidateTag(TAG.ALUMNOS);
+  revalidateTag(TAG.ALUMNOS, "max");
   revalidatePath("/alumnos");
 }
 
@@ -73,7 +73,7 @@ export async function deleteAlumno(id: string) {
     throw new Error("Error al eliminar alumno: " + error.message);
   }
 
-  revalidateTag(TAG.ALUMNOS);
+  revalidateTag(TAG.ALUMNOS, "max");
   revalidatePath("/alumnos");
   return { success: true };
 }
@@ -120,7 +120,7 @@ export async function updateAlumno(id: string, formData: FormData) {
   }
 
   revalidatePath(`/alumnos/${id}`);
-  revalidateTag(TAG.ALUMNOS);
+  revalidateTag(TAG.ALUMNOS, "max");
   revalidatePath("/alumnos");
   return { success: true };
 }

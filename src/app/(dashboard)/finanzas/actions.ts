@@ -48,7 +48,7 @@ export async function guardarTarifa(data: {
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.TARIFAS);
+  revalidateTag(TAG.TARIFAS, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/tarifas");
 }
@@ -84,8 +84,8 @@ export async function registrarGasto(data: {
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.GASTOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.GASTOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/gastos");
 }
@@ -95,8 +95,8 @@ export async function eliminarGasto(id: string) {
   const { error } = await supabase.from("gastos").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.GASTOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.GASTOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/gastos");
 }
@@ -137,8 +137,8 @@ export async function registrarPago(data: {
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -159,8 +159,8 @@ export async function actualizarEstadoPago(id: string, estado: EstadoPago) {
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -171,8 +171,8 @@ export async function eliminarPago(id: string) {
   const { error } = await supabase.from("pagos").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
 }
@@ -209,8 +209,8 @@ export async function guardarAbono(data: {
 
   if (error) throw new Error(error.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
 }
@@ -259,8 +259,8 @@ export async function cargarCreditos(data: {
 
   if (errMov) throw new Error(errMov.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -309,8 +309,8 @@ export async function registrarPagoCuentaCorriente(data: {
 
   if (errMov) throw new Error(errMov.message);
 
-  revalidateTag(TAG.PAGOS);
-  revalidateTag(TAG.RESUMEN_FINANCIERO);
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
