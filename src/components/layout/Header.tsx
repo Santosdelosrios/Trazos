@@ -15,7 +15,7 @@ export default function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
       <div className="flex flex-1 items-center">
         <button
           onClick={onMenuClick}
-          className="rounded-lg p-2 text-surface-500 hover:bg-surface-100 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-primary-200 transition-all active:scale-90"
+          className="hidden md:inline-flex rounded-lg p-2 text-surface-500 hover:bg-surface-100 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-primary-200 transition-all active:scale-90"
           title={isSidebarOpen ? "Cerrar menú" : "Abrir menú"}
         >
           <Menu size={24} className={cn("transition-transform duration-300", isSidebarOpen ? "rotate-90" : "rotate-0")} />
