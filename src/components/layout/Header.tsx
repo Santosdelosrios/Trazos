@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { Menu, User } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -13,6 +13,7 @@ export default function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-surface-200 bg-white/80 px-4 md:px-6 backdrop-blur-md">
       <div className="flex flex-1 items-center">
+        {/* Hamburguesa solo en desktop */}
         <button
           onClick={onMenuClick}
           className="hidden md:inline-flex rounded-lg p-2 text-surface-500 hover:bg-surface-100 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-primary-200 transition-all active:scale-90"
@@ -20,6 +21,16 @@ export default function Header({ onMenuClick, isSidebarOpen }: HeaderProps) {
         >
           <Menu size={24} className={cn("transition-transform duration-300", isSidebarOpen ? "rotate-90" : "rotate-0")} />
         </button>
+
+        {/* Botón de perfil solo en mobile */}
+        <Link
+          href="/perfil"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200 transition-all active:scale-90 md:hidden"
+          title="Mi perfil"
+          aria-label="Mi perfil"
+        >
+          <User size={22} />
+        </Link>
       </div>
 
       <Link href="/dashboard" className="flex items-center gap-2 transition-transform active:scale-95">
