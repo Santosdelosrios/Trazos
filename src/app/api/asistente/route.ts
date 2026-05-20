@@ -112,10 +112,7 @@ export async function POST(request: Request) {
       try {
         const genAI = getGenAI();
         const model = genAI.getGenerativeModel({
-          // gemini-2.5-flash es el modelo oficial actual con soporte de
-          // function calling. "gemini-3.1-flash-lite" no es un nombre válido
-          // en la API pública de Gemini.
-          model: "gemini-2.5-flash",
+          model: "gemini-3.5-flash",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
