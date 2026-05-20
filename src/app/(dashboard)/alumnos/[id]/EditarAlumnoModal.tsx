@@ -49,7 +49,7 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 rounded-xl bg-surface-100 px-3 py-2 text-xs font-bold text-surface-700 hover:bg-primary-50 hover:text-primary-700 transition-all active:scale-95 border border-surface-200"
+        className="flex items-center justify-center gap-1.5 rounded-xl bg-surface-100 px-4 py-2.5 text-sm font-bold text-surface-700 hover:bg-primary-50 hover:text-primary-700 transition-all active:scale-95 border border-surface-200 sm:px-3 sm:py-2 sm:text-xs"
         title="Editar ficha del alumno"
       >
         <Pencil size={14} />

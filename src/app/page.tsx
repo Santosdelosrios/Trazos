@@ -34,7 +34,7 @@ export default function Home() {
             
             <h1 className="text-5xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight">
               Dar clases particulares es un caos. <br />
-              <span className="trazos-heading text-[var(--color-primary-700)]">Trazos es tu cuaderno en limpio.</span>
+              <span className="trazos-heading text-[var(--color-primary-700)]">Trazos de Maestra es tu cuaderno en limpio.</span>
             </h1>
             
             <p className="text-xl text-[var(--color-surface-700)] leading-relaxed max-w-lg mt-6 font-medium">

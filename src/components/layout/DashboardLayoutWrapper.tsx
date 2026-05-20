@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import BottomNav from "./BottomNav";
@@ -13,16 +13,24 @@ export default function DashboardLayoutWrapper({
   children: React.ReactNode;
   plan?: "free" | "premium";
 }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Sidebar empieza cerrada por default; en desktop se abre al montar.
+  // En mobile usamos BottomNav, así que se mantiene cerrada.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches) {
+      setIsSidebarOpen(true);
+    }
+  }, []);
 
   return (
     <div className="flex min-h-screen">
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} plan={plan} />
-      
-      {/* Overlay for mobile only */}
+
+      {/* Overlay sólo aplica si la sidebar se abre en desktop pequeño (md no-touch). En mobile la hamburguesa está oculta. */}
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 z-30 bg-surface-900/20 backdrop-blur-sm md:hidden" 
+        <div
+          className="fixed inset-0 z-30 bg-surface-900/20 backdrop-blur-sm md:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
