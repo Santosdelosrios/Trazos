@@ -112,7 +112,10 @@ export async function POST(request: Request) {
       try {
         const genAI = getGenAI();
         const model = genAI.getGenerativeModel({
-          model: "gemini-3.1-flash-lite",
+          // gemini-2.5-flash es el modelo oficial actual con soporte de
+          // function calling. "gemini-3.1-flash-lite" no es un nombre válido
+          // en la API pública de Gemini.
+          model: "gemini-2.5-flash",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
@@ -205,9 +208,19 @@ export async function POST(request: Request) {
 
         close("done", { history: updatedHistory });
       } catch (error: unknown) {
-        console.error("❌ Error en agente Tiza:", error);
+        // Logging detallado para diagnosticar errores de Gemini
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const errStack = error instanceof Error ? error.stack : undefined;
+        console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
+
+        // En dev incluimos el mensaje real para diagnosticar
+        const isDev = process.env.NODE_ENV !== "production";
+        const replyText = isDev
+          ? `Error técnico: ${errMsg}`
+          : "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?";
+
         close("error", {
-          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
+          reply: replyText,
           history,
         });
       }
