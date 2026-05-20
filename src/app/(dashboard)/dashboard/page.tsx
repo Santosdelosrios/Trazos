@@ -47,6 +47,7 @@ export default async function DashboardPage() {
   const todayStr = getTodayKeyAR();
 
   // Todas las queries paralelizadas usando la capa lib/db/queries
+  // (cada una con React.cache() para dedup en mismo request)
   const [
     alumnosData,
     clasesMes,
@@ -55,12 +56,12 @@ export default async function DashboardPage() {
     resumenFinanciero,
     nombreMaestraDB,
   ] = await Promise.all([
-    getAlumnosBasicos(supabase, user.id),
-    getClasesDelMes(supabase, user.id, startOfMonth),
-    getEvaluacionStats(supabase, user.id),
-    getAgendaPendiente(supabase, user.id),
-    getResumenFinanciero(supabase, user.id),
-    getNombreMaestra(supabase, user.id),
+    getAlumnosBasicos(user.id),
+    getClasesDelMes(user.id, startOfMonth.toISOString()),
+    getEvaluacionStats(user.id),
+    getAgendaPendiente(user.id),
+    getResumenFinanciero(user.id),
+    getNombreMaestra(user.id),
   ]);
 
   const nombreMaestra = nombreMaestraDB || user.user_metadata?.nombre || "Profe";

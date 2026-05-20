@@ -4,12 +4,11 @@ import { useState } from "react";
 import { updateProfile, deleteAccount } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import PerfilStats from "./PerfilStats";
 import {
   User,
   Mail,
   CalendarDays,
-  GraduationCap,
-  BookOpen,
   LogOut,
   Pencil,
   Check,
@@ -205,43 +204,11 @@ export default function PerfilClient({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          {
-            label: "Alumnos",
-            value: profile.totalAlumnos,
-            icon: GraduationCap,
-            color: "bg-primary-50 text-primary-600",
-          },
-          {
-            label: "Clases Totales",
-            value: profile.totalClases,
-            icon: BookOpen,
-            color: "bg-accent-50 text-accent-600",
-          },
-          {
-            label: "Clases este Mes",
-            value: profile.clasesMes,
-            icon: CalendarDays,
-            color: "bg-success-50 text-success-600",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl bg-white border border-surface-200 p-5 shadow-sm text-center"
-          >
-            <div
-              className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${stat.color}`}
-            >
-              <stat.icon size={20} />
-            </div>
-            <p className="text-2xl font-bold text-surface-900">{stat.value}</p>
-            <p className="text-xs font-medium text-surface-500 mt-1">
-              {stat.label}
-            </p>
-          </div>
-        ))}
-      </div>
+      <PerfilStats
+        totalAlumnos={profile.totalAlumnos}
+        totalClases={profile.totalClases}
+        clasesMes={profile.clasesMes}
+      />
 
       {/* Mi Plan */}
       <div className="rounded-2xl bg-white border border-surface-200 shadow-sm overflow-hidden">
