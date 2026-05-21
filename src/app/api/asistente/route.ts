@@ -251,9 +251,8 @@ export async function POST(request: Request) {
         const errStack = error instanceof Error ? error.stack : undefined;
         console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
 
-        // TEMPORAL: exponer error real al cliente para diagnosticar
         close("error", {
-          reply: `⚠️ Error técnico (debug): ${errMsg.slice(0, 600)}`,
+          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
           history,
         });
       }
