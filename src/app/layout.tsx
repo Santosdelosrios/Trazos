@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Nunito, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -158,6 +159,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <Analytics />
+        <GoogleAnalytics gaId="G-7S28YE9W13" />
       </body>
     </html>
   );
