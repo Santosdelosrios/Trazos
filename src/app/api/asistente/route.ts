@@ -9,7 +9,6 @@ import { getPlan } from "@/lib/plan";
 import {
   GoogleGenerativeAI,
   type FunctionDeclaration,
-  FunctionCallingMode,
 } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
@@ -17,11 +16,6 @@ import { buildAsistenteSystemPrompt } from "@/lib/asistente/system-prompt";
 import { TOOL_DECLARATIONS } from "@/lib/asistente/tools";
 import { executeTool } from "@/lib/asistente/executor";
 import type { ActionTaken, AsistenteRequest, GeminiHistoryEntry } from "@/lib/asistente/types";
-
-// Allowlist de nombres de funciones que Gemini puede invocar. Doble seguro
-// contra alucinación de tools — el executor ya filtra, pero acá nos
-// aseguramos que el modelo ni siquiera vea otras opciones.
-const ALLOWED_TOOL_NAMES = TOOL_DECLARATIONS.map((t) => t.name);
 
 // Límites duros sobre el input del cliente para mitigar prompt injection
 // por payload exagerado o flooding.
@@ -153,19 +147,12 @@ export async function POST(request: Request) {
           model: "gemini-3.5-flash",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
-          // toolConfig en modo AUTO con allowedFunctionNames le dice al modelo
-          // que SOLO puede invocar funciones de esta lista. Defensa en
-          // profundidad: aunque el modelo intente "alucinar" un nombre nuevo,
-          // la API rechaza antes de llegar a nuestro executor.
-          toolConfig: {
-            functionCallingConfig: {
-              mode: FunctionCallingMode.AUTO,
-              allowedFunctionNames: ALLOWED_TOOL_NAMES,
-            },
-          },
+          // NOTA: removimos `toolConfig` con `allowedFunctionNames` —
+          // hacía que el modelo respondiera 400 BadRequest en algunas
+          // versiones. La defensa contra tools no autorizadas vive en
+          // el executor (switch con default), que es nuestra fuente
+          // de verdad. El system prompt también refuerza la allowlist.
           generationConfig: {
-            // temperatura baja → respuestas más predecibles y menos
-            // propensas a salirse del scope.
             temperature: 0.3,
             maxOutputTokens: 1024,
           },
@@ -264,8 +251,9 @@ export async function POST(request: Request) {
         const errStack = error instanceof Error ? error.stack : undefined;
         console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
 
+        // TEMPORAL: exponer error real al cliente para diagnosticar
         close("error", {
-          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
+          reply: `⚠️ Error técnico (debug): ${errMsg.slice(0, 600)}`,
           history,
         });
       }
