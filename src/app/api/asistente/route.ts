@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       try {
         const genAI = getGenAI();
         const model = genAI.getGenerativeModel({
-          model: "gemini-3.5-flash",
+          model: "gemini-3.1-flash-lite",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
           // NOTA: removimos `toolConfig` con `allowedFunctionNames` —
