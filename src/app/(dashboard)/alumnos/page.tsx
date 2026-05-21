@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAlumno, deleteAlumno } from "./actions";
-import { UserPlus, Trash2, GraduationCap, Plus, Crown } from "lucide-react";
-import { getPlan, PLAN_LIMITS, type Plan } from "@/lib/plan";
+import { UserPlus, Trash2, GraduationCap, Crown } from "lucide-react";
+import { getPlan, PLAN_LIMITS } from "@/lib/plan";
 import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
 import SubmitButton from "@/components/ui/SubmitButton";
 import EmptyState from "@/components/ui/EmptyState";
@@ -42,7 +42,7 @@ export default async function AlumnosPage() {
   const atLimit = plan === "free" && totalAlumnos >= maxAlumnos;
 
   // Fetch ALL balances in a single batch call (avoids N+1 queries)
-  let saldosMap: Record<string, number> = {};
+  const saldosMap: Record<string, number> = {};
 
   if (alumnosRaw && alumnosRaw.length > 0) {
     const { data: saldosBatch } = await supabase.rpc("calcular_saldos_maestra", {
@@ -176,15 +176,53 @@ export default async function AlumnosPage() {
                               <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
                                 {alumno.grado}
                               </span>
-                              {alumno.saldo_pendiente > 0 ? (
-                                <span className="inline-flex items-center rounded-md bg-danger-50 px-2 py-1 text-xs font-bold text-danger-600 border border-danger-200">
-                                  Deuda: ${alumno.saldo_pendiente}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center rounded-md bg-success-50 px-2 py-1 text-xs font-bold text-success-600 border border-success-200">
-                                  Al día
-                                </span>
-                              )}
+                              {(() => {
+                                const saldo = alumno.saldo_pendiente || 0;
+                                const modelo = alumno.modelo_cobro || "por_clase";
+
+                                if (modelo === "bolsa_creditos") {
+                                  if (saldo > 0) {
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
+                                        {saldo} {saldo === 1 ? "clase disponible" : "clases disponibles"}
+                                      </span>
+                                    );
+                                  } else if (saldo < 0) {
+                                    const absSaldo = Math.abs(saldo);
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-800 border border-red-200">
+                                        {absSaldo} {absSaldo === 1 ? "clase adeudada" : "clases adeudadas"}
+                                      </span>
+                                    );
+                                  } else {
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 border border-gray-200">
+                                        Al día
+                                      </span>
+                                    );
+                                  }
+                                } else {
+                                  if (saldo > 0) {
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-800 border border-red-200">
+                                        Deuda: ${saldo.toLocaleString("es-AR")}
+                                      </span>
+                                    );
+                                  } else if (saldo < 0) {
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-bold text-blue-800 border border-blue-200">
+                                        Saldo a favor: ${Math.abs(saldo).toLocaleString("es-AR")}
+                                      </span>
+                                    );
+                                  } else {
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 border border-gray-200">
+                                        Al día
+                                      </span>
+                                    );
+                                  }
+                                }
+                              })()}
                             </div>
                           </div>
                         </div>
