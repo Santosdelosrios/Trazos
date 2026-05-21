@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       try {
         const genAI = getGenAI();
         const model = genAI.getGenerativeModel({
-          model: "gemini-3.5-flash",
+          model: "gemini-3.1-flash-lite",
           systemInstruction: buildAsistenteSystemPrompt(),
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as unknown as FunctionDeclaration[] }],
           // NOTA: removimos `toolConfig` con `allowedFunctionNames` —
@@ -251,9 +251,8 @@ export async function POST(request: Request) {
         const errStack = error instanceof Error ? error.stack : undefined;
         console.error("❌ Error en agente Tiza:", { message: errMsg, stack: errStack });
 
-        // TEMPORAL: exponer error real al cliente para diagnosticar
         close("error", {
-          reply: `⚠️ Error técnico (debug): ${errMsg.slice(0, 600)}`,
+          reply: "Uy, tuve un problema técnico 😅 Intentá de nuevo en un ratito, ¿dale?",
           history,
         });
       }
