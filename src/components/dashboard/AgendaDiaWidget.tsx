@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/core";
 import dynamic from "next/dynamic";
 import { formatDateKey as formatDateStr, parseDateKey as parseDateStr } from "@/lib/utils/fechas";
+import { useOptimisticAgenda } from "@/lib/hooks/useOptimisticAgenda";
 
 const OpcionesClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/OpcionesClaseModal"), { ssr: false });
 const EditarClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/EditarClaseModal"), { ssr: false });
@@ -220,6 +221,8 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [resizingDeltaY, setResizingDeltaY] = useState(0);
 
+  const { optimisticAgenda, reprogramarClase, redimensionarClase } = useOptimisticAgenda(items);
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
@@ -261,7 +264,7 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
     }
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over, delta } = event;
 
     if (resizingId) {
@@ -272,15 +275,13 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
         const currentDurationMinutes = (item.duracion_estimada || 1) * 60;
         const newDurationHours = Math.max(0.25, (currentDurationMinutes + extraMinutes) / 60);
 
-        try {
-          const { actualizarDuracionClase } = await import("@/app/(dashboard)/agenda/actions");
-          await actualizarDuracionClase(item.id, newDurationHours);
-        } catch (e) {
-          console.error(e);
-        }
+        setResizingId(null);
+        setResizingDeltaY(0);
+        redimensionarClase(item.id, newDurationHours);
+      } else {
+        setResizingId(null);
+        setResizingDeltaY(0);
       }
-      setResizingId(null);
-      setResizingDeltaY(0);
       return;
     }
 
@@ -300,19 +301,14 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
 
       if (newHora === item.hora) return;
 
-      try {
-        const { actualizarHorarioClase } = await import("@/app/(dashboard)/agenda/actions");
-        await actualizarHorarioClase(item.id, selectedDateStr, newHora);
-      } catch (err) {
-        console.error(err);
-      }
+      reprogramarClase(item.id, selectedDateStr, newHora);
     }
   };
 
   if (!mounted) return <div className="h-96 rounded-2xl bg-surface-100 animate-pulse" />;
 
   const isToday = selectedDateStr === formatDateStr(new Date());
-  const todaysItems = items.filter(i => i.fecha === selectedDateStr);
+  const todaysItems = optimisticAgenda.filter(i => i.fecha === selectedDateStr);
   const displayDateText = selectedDateStr ? parseDateStr(selectedDateStr).toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long' }) : "";
 
   return (
