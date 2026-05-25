@@ -41,16 +41,33 @@ export default function PrepararClaseModal({
   const nombre = `${item.alumnos?.nombre ?? ""} ${item.alumnos?.apellido ?? ""}`.trim();
 
   const handleGenerar = async () => {
-    if (!file) return;
     setErrorMsg(null);
     setVista("loading");
     try {
       const fd = new FormData();
       fd.append("agendaId", item.id);
-      fd.append("file", file);
+      if (file) fd.append("file", file);
+
       const res = await fetch("/api/preparar-clase", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "No se pudo preparar la clase.");
+
+      // La respuesta puede no ser JSON (ej. 413 del servidor devuelve texto plano).
+      const raw = await res.text();
+      let data: { plan?: PlanClase; error?: string } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok || !data.plan) {
+        throw new Error(
+          data.error ||
+            (res.status === 413
+              ? "El PDF es demasiado grande. Probá con uno más liviano o usá el historial."
+              : "No se pudo preparar la clase. Intentá de nuevo.")
+        );
+      }
+
       setPlan(data.plan);
       setVista("plan");
     } catch (error: unknown) {

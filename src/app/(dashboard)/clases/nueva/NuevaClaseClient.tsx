@@ -33,6 +33,7 @@ export default function NuevaClaseClient({
   const [selectedAlumnoId, setSelectedAlumnoId] = useState<string | null>(initialAlumnoId || null);
 
   // Datos guardados durante el flujo
+  const [temasClase, setTemasClase] = useState<string[]>([]);
   const [claseAlumnoId, setClaseAlumnoId] = useState<string>("00000000-0000-0000-0000-000000000000"); // Temporal mock uuid
   const [claseIdGuardada, setClaseIdGuardada] = useState<string | null>(null);
   const [resultados, setResultados] = useState<EjercicioResultado[]>([]);
@@ -70,6 +71,7 @@ export default function NuevaClaseClient({
       setEjercicios(result.ejercicios);
       setEjercicioActualIndex(0);
       setResultados([]);
+      setTemasClase(data.temas);
       
       try {
         const { createClaseAndVinculo } = await import("./actions");
@@ -154,8 +156,8 @@ export default function NuevaClaseClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clase_alumno_id: claseAlumnoId, 
-          tema: "Tema evaluado", 
+          clase_alumno_id: claseAlumnoId,
+          tema: temasClase.join(", ") || "la clase",
           respuestaCorrecta: correctas >= 2, // Para compatibilidad con la IA anterior (aprobar/desaprobar)
           nivelAutoevaluacion: nivel,
           resultados_completos: resultados,
