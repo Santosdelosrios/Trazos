@@ -116,7 +116,7 @@ export default async function DashboardPage() {
           <div className="grid gap-8 lg:grid-cols-3">
             {/* Columna Izquierda: Agenda de Hoy */}
             <div className="lg:col-span-2">
-              <AgendaDiaWidget items={proximasClases as any} alumnos={alumnosData || []} />
+              <AgendaDiaWidget items={proximasClases as any} alumnos={alumnosData || []} esPremium={plan === "premium"} />
             </div>
 
         {/* Columna Derecha: Panel de Control */}

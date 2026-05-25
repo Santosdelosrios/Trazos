@@ -22,10 +22,12 @@ import { useOptimisticAgenda } from "@/lib/hooks/useOptimisticAgenda";
 
 const OpcionesClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/OpcionesClaseModal"), { ssr: false });
 const EditarClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/EditarClaseModal"), { ssr: false });
+const PrepararClaseModal = dynamic(() => import("@/app/(dashboard)/agenda/modals/PrepararClaseModal"), { ssr: false });
 
 interface AgendaDiaWidgetProps {
   items: AgendaItem[];
   alumnos: { id: string; nombre: string; apellido: string }[];
+  esPremium?: boolean;
 }
 
 const snapToGridModifier: Modifier = ({ transform }) => {
@@ -212,11 +214,12 @@ function DroppableColumna({ dateKey, isToday, children }: { dateKey: string; isT
   );
 }
 
-export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps) {
+export default function AgendaDiaWidget({ items, alumnos, esPremium = false }: AgendaDiaWidgetProps) {
   const [mounted, setMounted] = useState(false);
   const [selectedDateStr, setSelectedDateStr] = useState("");
   const [selectionItem, setSelectionItem] = useState<AgendaItem | null>(null);
   const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
+  const [preparingItem, setPreparingItem] = useState<AgendaItem | null>(null);
   
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [resizingDeltaY, setResizingDeltaY] = useState(0);
@@ -416,6 +419,10 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
             setEditingItem(selectionItem);
             setSelectionItem(null);
           }}
+          onPreparar={() => {
+            setPreparingItem(selectionItem);
+            setSelectionItem(null);
+          }}
         />
       )}
 
@@ -424,6 +431,14 @@ export default function AgendaDiaWidget({ items, alumnos }: AgendaDiaWidgetProps
           item={editingItem}
           alumnos={alumnos}
           onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {preparingItem && (
+        <PrepararClaseModal
+          item={preparingItem}
+          esPremium={esPremium}
+          onClose={() => setPreparingItem(null)}
         />
       )}
     </div>

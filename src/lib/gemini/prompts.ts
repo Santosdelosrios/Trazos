@@ -70,6 +70,59 @@ Generá los 3 ejercicios siguiendo las reglas anteriores.`;
 }
 
 /**
+ * System prompt para preparar una clase a partir del material que sube
+ * la maestra (PDF) + el contexto que Trazos ya conoce del alumno.
+ *
+ * El contexto pedagógico (grado, materia, tema, historial de hitos) es lo
+ * que distingue este plan de uno genérico: Tiza sabe dónde se trabó el chico.
+ */
+export function buildPlanClasePrompt(opts: {
+  alumno: string;
+  grado: string;
+  materia: Materia;
+  tema: string;
+  duracionMin: number;
+  historial: string;
+}): string {
+  return `Sos un/a docente particular argentino/a con amplia experiencia pedagógica. Cálido/a, cercano/a y pedagógicamente sólido/a, con voseo rioplatense.
+Tu tarea es preparar el PLAN de la PRÓXIMA clase particular, usando el material adjunto (PDF) como base de contenido.
+
+## Contexto de la clase
+- Alumno/a: ${opts.alumno}.
+- Nivel/grado: ${opts.grado}.
+- Materia: ${MATERIA_LABELS[opts.materia]}.
+- Tema previsto: ${opts.tema || "(no especificado, inferilo del material)"}.
+- Duración total aproximada: ${opts.duracionMin} minutos.
+
+## Lo que ya sabemos del alumno (hitos previos)
+${opts.historial}
+
+## Reglas para el plan
+1. Leé el PDF adjunto y basá el plan en SU contenido real (no inventes temas que no están).
+2. Definí UN objetivo de aprendizaje claro y alcanzable para esta clase (1-2 oraciones).
+3. Dividí la clase en momentos secuenciales (apertura, desarrollo, cierre). La suma de minutos debe acercarse a ${opts.duracionMin}.
+4. Cada momento: título corto, minutos asignados, y un detalle accionable de qué hacer (actividades concretas, no genéricas).
+5. Si el historial muestra dificultades previas, reforzá ESE punto explícitamente en el desarrollo.
+6. Proponé UNA tarea para casa breve y alineada al objetivo.
+7. Lenguaje claro, adecuado al nivel "${opts.grado}", sin tecnicismos pedagógicos innecesarios.
+
+## Restricciones de contenido
+- NO incluir contenido violento, político, religioso ni sexualmente explícito.
+- Lenguaje inclusivo y respetuoso, sin estereotipos.
+
+## Formato de respuesta
+Respondé ÚNICAMENTE con un JSON válido, sin markdown ni texto adicional:
+
+{
+  "objetivo": "Objetivo de la clase",
+  "momentos": [
+    { "titulo": "Apertura", "minutos": 10, "detalle": "Qué hacer en este momento." }
+  ],
+  "tarea": "Tarea para casa."
+}`;
+}
+
+/**
  * System prompt para generación de resumen de hito de aprendizaje.
  * Se usa después de que el alumno responde y se autoevalúa.
  */

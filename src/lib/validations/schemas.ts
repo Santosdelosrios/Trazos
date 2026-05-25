@@ -95,14 +95,29 @@ export const PlanificarClaseSchema = z.object({
 
 export const ActualizarClaseSchema = z.object({
   hora: z.string().regex(/^\d{2}:\d{2}$/, "Formato de hora inválido."),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
   alumno_id: z.string().uuid("ID de alumno inválido."),
-  tarifa_esperada: z.coerce.number().min(0, "La tarifa no puede ser negativa."),
   tema_previsto: z.string().max(200, "El tema no puede superar los 200 caracteres.").optional().default(""),
 });
 
 export const ActualizarHorarioSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
   hora: z.string().regex(/^\d{2}:\d{2}$/, "Formato de hora inválido."),
+});
+
+export const PlanClaseSchema = z.object({
+  objetivo: z.string().max(1000),
+  momentos: z
+    .array(
+      z.object({
+        titulo: z.string().max(120),
+        minutos: z.coerce.number().min(0).max(600),
+        detalle: z.string().max(2000),
+      })
+    )
+    .max(12),
+  tarea: z.string().max(2000),
+  generado_at: z.string(),
 });
 
 export const ActualizarDuracionSchema = z.object({
