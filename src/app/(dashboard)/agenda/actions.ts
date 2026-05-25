@@ -119,6 +119,7 @@ export async function actualizarHorarioClase(
   if (error) throw new Error(error.message);
 
   revalidatePath("/agenda");
+  revalidatePath("/dashboard");
 }
 
 export async function actualizarClase(
@@ -177,6 +178,7 @@ export async function actualizarDuracionClase(
   if (error) throw new Error(error.message);
 
   revalidatePath("/agenda");
+  revalidatePath("/dashboard");
 }
 
 export async function cerrarClaseExpress(id: string) {
