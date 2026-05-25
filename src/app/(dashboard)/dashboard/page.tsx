@@ -5,6 +5,9 @@ import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
 import AgendaDiaWidget from "@/components/dashboard/AgendaDiaWidget";
 import TutorialPrimerosPasos from "@/components/dashboard/TutorialPrimerosPasos";
 import ClaseEnVivoWidget from "@/components/dashboard/ClaseEnVivoWidget";
+import BriefingCard from "@/components/dashboard/BriefingCard";
+import { obtenerBriefing } from "@/lib/briefing";
+import { getPlan } from "@/lib/plan";
 import { getTodayKeyAR } from "@/lib/utils/fechas";
 import {
   getAlumnosBasicos,
@@ -55,6 +58,8 @@ export default async function DashboardPage() {
     proximasClases,
     resumenFinanciero,
     nombreMaestraDB,
+    briefing,
+    plan,
   ] = await Promise.all([
     getAlumnosBasicos(user.id),
     getClasesDelMes(user.id, startOfMonth.toISOString()),
@@ -62,6 +67,8 @@ export default async function DashboardPage() {
     getAgendaPendiente(user.id),
     getResumenFinanciero(user.id),
     getNombreMaestra(user.id),
+    obtenerBriefing(supabase, user.id),
+    getPlan(supabase, user.id),
   ]);
 
   const nombreMaestra = nombreMaestraDB || user.user_metadata?.nombre || "Profe";
@@ -98,6 +105,8 @@ export default async function DashboardPage() {
 
       {totalAlumnos > 0 && (
         <>
+          <BriefingCard briefing={briefing} esPremium={plan === "premium"} />
+
           <ClaseEnVivoWidget proximasClases={proximasClases} />
 
           <div className="grid gap-8 lg:grid-cols-3">

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useOptimistic, startTransition } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { type AgendaItem } from "@/lib/types/database";
 import {
   CalendarDays, Plus,
   ChevronLeft, ChevronRight, History,
-  CalendarSync, Copy, Check, Crown
+  CalendarSync, Copy, Check, Crown, AlertCircle
 } from "lucide-react";
 import {
   DndContext,
@@ -20,6 +20,7 @@ import {
 } from "@dnd-kit/core";
 import { DraggableClase, DroppableColumna, snapToGridModifier } from "./AgendaComponents";
 import dynamic from "next/dynamic";
+import { actualizarHorarioClase } from "./actions";
 import { getFeriados, formatFeriadoDate, type Feriado } from "@/lib/utils/feriados";
 
 import type { ClaseCerrada } from "./page";
@@ -82,6 +83,20 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
 
   const [activeItem, setActiveItem] = useState<AgendaItem | null>(null);
 
+  // Optimistic UI para reprogramar clases (drag & drop).
+  // El rollback es automático: si la Server Action lanza, la transición termina
+  // sin revalidar y el estado vuelve a `initialAgenda` (posición original).
+  const [optimisticAgenda, moveClaseOptimista] = useOptimistic(
+    initialAgenda,
+    (state, move: { id: string; fecha: string; hora: string }) =>
+      state.map((clase) =>
+        clase.id === move.id
+          ? { ...clase, fecha: move.fecha, hora: move.hora }
+          : clase
+      )
+  );
+  const [dragError, setDragError] = useState<string | null>(null);
+
   const handleDragStart = (event: { active: { id: string | number; data: { current?: unknown } } }) => {
     const { active } = event;
     if (active.id.toString().startsWith("resize-")) {
@@ -142,12 +157,18 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
 
       if (newDate === item.fecha && newHora === item.hora) return;
 
-      try {
-        const { actualizarHorarioClase } = await import("./actions");
-        await actualizarHorarioClase(item.id, newDate, newHora);
-      } catch (err) {
-        console.error(err);
-      }
+      startTransition(async () => {
+        // 1. Reposicionar al instante (no bloqueante).
+        moveClaseOptimista({ id: item.id, fecha: newDate, hora: newHora });
+        // 2. Persistir en segundo plano; si falla, el estado optimista se
+        //    descarta solo (rollback) al terminar la transición sin revalidar.
+        try {
+          await actualizarHorarioClase(item.id, newDate, newHora);
+        } catch (err) {
+          console.error(err);
+          setDragError("No se pudo reprogramar la clase. Volvé a intentarlo.");
+        }
+      });
     }
   };
 
@@ -186,11 +207,17 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
     return () => controller.abort();
   }, [currentMonday, mounted]);
 
+  useEffect(() => {
+    if (!dragError) return;
+    const t = setTimeout(() => setDragError(null), 4000);
+    return () => clearTimeout(t);
+  }, [dragError]);
+
   const weekDays = useMemo(() => getWeekDays(currentMonday), [currentMonday]);
 
   const pendingItems = useMemo(
-    () => initialAgenda.filter((i) => i.estado === "pendiente"),
-    [initialAgenda]
+    () => optimisticAgenda.filter((i) => i.estado === "pendiente"),
+    [optimisticAgenda]
   );
 
   // Group agenda items by date key
@@ -515,6 +542,17 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
           alumnos={alumnos}
           onClose={() => setEditingItem(null)}
         />
+      )}
+
+      {/* Toast de error (rollback del drag & drop) */}
+      {dragError && (
+        <div
+          role="alert"
+          className="fixed bottom-6 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-500 shadow-xl animate-fade-in-up"
+        >
+          <AlertCircle size={16} className="shrink-0" />
+          {dragError}
+        </div>
       )}
     </div>
   );

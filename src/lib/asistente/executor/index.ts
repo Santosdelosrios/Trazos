@@ -17,7 +17,7 @@ import {
   organizarCobroMes,
   cargarCreditosTool,
 } from "./cobros";
-import { resumenFinanciero, consultarFeriadosTool } from "./finanzas";
+import { resumenFinanciero, consultarFeriadosTool, obtenerBriefingHoy } from "./finanzas";
 
 /**
  * Punto de entrada principal. Rutea la tool call a su implementación.
@@ -54,6 +54,8 @@ export async function executeTool(
         return await cambiarModeloCobro(supabase, maestraId, args);
       case "cargar_creditos":
         return await cargarCreditosTool(supabase, maestraId, args);
+      case "obtener_briefing_hoy":
+        return await obtenerBriefingHoy(supabase, maestraId);
       default:
         return {
           success: false,

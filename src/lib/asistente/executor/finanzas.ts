@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolResult } from "../types";
+import { obtenerBriefing } from "@/lib/briefing";
 
 export async function resumenFinanciero(
   supabase: SupabaseClient,
@@ -40,5 +41,34 @@ export async function consultarFeriadosTool(anio: number): Promise<ToolResult> {
     success: true,
     data: { anio, feriados: feriadosList, total: feriadosList.length },
     summary: `Consulté ${feriadosList.length} feriados de Argentina para el año ${anio}.`,
+  };
+}
+
+export async function obtenerBriefingHoy(
+  supabase: SupabaseClient,
+  maestraId: string
+): Promise<ToolResult> {
+  const b = await obtenerBriefing(supabase, maestraId);
+
+  return {
+    success: true,
+    data: {
+      clases_hoy: b.clasesHoy,
+      proxima_clase: b.proximaClase
+        ? `${b.proximaClase.hora} con ${b.proximaClase.alumno}`
+        : null,
+      familias_con_deuda: b.deudores.count,
+      monto_total_adeudado: b.deudores.total,
+      nombres_deudores: b.deudores.nombres,
+      feriado_hoy: b.feriadoHoy,
+    },
+    summary:
+      `Hoy tenés ${b.clasesHoy} clase(s)` +
+      (b.proximaClase ? ` (próxima ${b.proximaClase.hora})` : "") +
+      (b.deudores.count > 0
+        ? `. ${b.deudores.count} familia(s) deben $${b.deudores.total.toLocaleString("es-AR")}`
+        : ". Cobros al día") +
+      (b.feriadoHoy ? `. Ojo: hoy es feriado (${b.feriadoHoy})` : "") +
+      ".",
   };
 }
