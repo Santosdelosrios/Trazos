@@ -10,10 +10,12 @@ export default function OpcionesClaseModal({
   item,
   onClose,
   onEdit,
+  onPreparar,
 }: {
   item: AgendaItem;
   onClose: () => void;
   onEdit: () => void;
+  onPreparar: () => void;
 }) {
   const [isClosingExpress, setIsClosingExpress] = useState(false);
 
@@ -101,6 +103,14 @@ export default function OpcionesClaseModal({
               </p>
             </div>
           )}
+
+          <button
+            onClick={onPreparar}
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary-50 px-6 py-4 text-sm font-bold text-primary-700 hover:bg-primary-100 transition-all active:scale-95 border border-primary-200"
+          >
+            <Rocket size={18} strokeWidth={2.5} />
+            Preparar con Tiza
+          </button>
 
           <button
             onClick={onEdit}

@@ -8,7 +8,9 @@ import {
   ActualizarClaseSchema,
   ActualizarHorarioSchema,
   ActualizarDuracionSchema,
+  PlanClaseSchema,
 } from "@/lib/validations/schemas";
+import type { PlanClase } from "@/lib/types/database";
 
 export async function planificarClase(rawInput: {
   alumno_id: string;
@@ -126,8 +128,8 @@ export async function actualizarClase(
   id: string,
   rawInput: {
     hora: string;
+    fecha: string;
     alumno_id: string;
-    tarifa_esperada: number;
     tema_previsto: string;
   }
 ) {
@@ -144,8 +146,8 @@ export async function actualizarClase(
     .from("agenda")
     .update({
       hora: valid.hora,
+      fecha: valid.fecha,
       alumno_id: valid.alumno_id,
-      tarifa_esperada: valid.tarifa_esperada,
       tema_previsto: valid.tema_previsto,
     })
     .eq("id", id)
@@ -154,6 +156,7 @@ export async function actualizarClase(
   if (error) throw new Error(error.message);
 
   revalidatePath("/agenda");
+  revalidatePath("/dashboard");
 }
 
 export async function actualizarDuracionClase(
@@ -179,6 +182,27 @@ export async function actualizarDuracionClase(
 
   revalidatePath("/agenda");
   revalidatePath("/dashboard");
+}
+
+export async function guardarPlanClase(id: string, plan: PlanClase) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  const valid = PlanClaseSchema.parse(plan);
+
+  const { error } = await supabase
+    .from("agenda")
+    .update({ plan_clase: valid })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
 }
 
 export async function cerrarClaseExpress(id: string) {

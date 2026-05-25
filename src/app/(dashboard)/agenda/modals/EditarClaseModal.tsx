@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Clock, Trash2 } from "lucide-react";
+import { X, Clock, Calendar, Trash2 } from "lucide-react";
 import type { AgendaItem } from "@/lib/types/database";
 
 export default function EditarClaseModal({
@@ -17,8 +17,8 @@ export default function EditarClaseModal({
   const [formData, setFormData] = useState({
     alumno_id: item.alumno_id,
     hora: String(item.hora).substring(0, 5),
+    fecha: item.fecha,
     tema_previsto: item.tema_previsto || "",
-    tarifa_esperada: item.tarifa_esperada || 0,
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -94,16 +94,13 @@ export default function EditarClaseModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider">Monto ARS</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-surface-400 text-sm">$</span>
-                <input
-                  type="number" required
-                  value={formData.tarifa_esperada}
-                  onChange={(e) => setFormData({ ...formData, tarifa_esperada: Number(e.target.value) })}
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-7 pr-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
-                />
-              </div>
+              <label className="text-xs font-bold text-surface-700 uppercase tracking-wider flex items-center gap-1"><Calendar size={12} /> Día</label>
+              <input
+                type="date" required
+                value={formData.fecha}
+                onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10 transition-all"
+              />
             </div>
           </div>
 

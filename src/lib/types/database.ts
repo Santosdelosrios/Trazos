@@ -94,6 +94,19 @@ export interface HitoAprendizaje {
   created_at: string;
 }
 
+export interface PlanClaseMomento {
+  titulo: string;
+  minutos: number;
+  detalle: string;
+}
+
+export interface PlanClase {
+  objetivo: string;
+  momentos: PlanClaseMomento[];
+  tarea: string;
+  generado_at: string;
+}
+
 export interface AgendaItem {
   id: string;
   maestra_id: string;
@@ -106,6 +119,7 @@ export interface AgendaItem {
   tarifa_esperada?: number | null;
   duracion_estimada?: number;
   clase_id?: string | null;
+  plan_clase?: PlanClase | null;
   created_at: string;
   // Join fields
   alumnos?: Alumno;

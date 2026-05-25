@@ -45,6 +45,7 @@ import {
 const PlanificarModal = dynamic(() => import("./modals/PlanificarModal"), { ssr: false });
 const OpcionesClaseModal = dynamic(() => import("./modals/OpcionesClaseModal"), { ssr: false });
 const EditarClaseModal = dynamic(() => import("./modals/EditarClaseModal"), { ssr: false });
+const PrepararClaseModal = dynamic(() => import("./modals/PrepararClaseModal"), { ssr: false });
 
 // --- Main Component ---
 export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
@@ -64,6 +65,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
     : "";
   const [editingItem, setEditingItem] = useState<AgendaItem | null>(null);
   const [selectionItem, setSelectionItem] = useState<AgendaItem | null>(null);
+  const [preparingItem, setPreparingItem] = useState<AgendaItem | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
   const [resizingDeltaY, setResizingDeltaY] = useState(0);
 
@@ -502,6 +504,10 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
             setEditingItem(selectionItem);
             setSelectionItem(null);
           }}
+          onPreparar={() => {
+            setPreparingItem(selectionItem);
+            setSelectionItem(null);
+          }}
         />
       )}
 
@@ -510,6 +516,14 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
           item={editingItem}
           alumnos={alumnos}
           onClose={() => setEditingItem(null)}
+        />
+      )}
+
+      {preparingItem && (
+        <PrepararClaseModal
+          item={preparingItem}
+          esPremium={plan === "premium"}
+          onClose={() => setPreparingItem(null)}
         />
       )}
     </div>

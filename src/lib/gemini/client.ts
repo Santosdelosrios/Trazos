@@ -2,9 +2,14 @@
 // components. Importarlo desde un client component infla el bundle
 // con el SDK de Gemini (~50kb).
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
-import { buildSystemPrompt, buildUserPrompt, buildHitoPrompt } from "./prompts";
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  buildHitoPrompt,
+  buildPlanClasePrompt,
+} from "./prompts";
 import { parseEjercicios } from "./parser";
-import type { Materia, EjercicioGenerado } from "@/lib/types/database";
+import type { Materia, EjercicioGenerado, PlanClase } from "@/lib/types/database";
 
 /**
  * Crea una instancia de GoogleGenerativeAI leyendo la key fresca
@@ -58,6 +63,27 @@ const HitoResponseSchema: Schema = {
     resumen_ia: { type: SchemaType.STRING },
   },
   required: ["nivel_comprension", "resumen_ia"],
+};
+
+const PlanClaseResponseSchema: Schema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    objetivo: { type: SchemaType.STRING },
+    momentos: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          titulo: { type: SchemaType.STRING },
+          minutos: { type: SchemaType.NUMBER },
+          detalle: { type: SchemaType.STRING },
+        },
+        required: ["titulo", "minutos", "detalle"],
+      },
+    },
+    tarea: { type: SchemaType.STRING },
+  },
+  required: ["objetivo", "momentos", "tarea"],
 };
 
 /**
@@ -275,6 +301,72 @@ En general, su comprensión fue favorable, reflejándose en su promedio de ${
     }. Observamos avances en los conceptos más complejos, aunque seguiremos repasando para consolidar la base.
 
 Para el próximo mes, sugiero continuar practicando con los ejercicios en casa para ganar mayor seguridad. ¡Excelente trabajo! (Nota: Este es un reporte simulado porque no se encontró la clave de IA).`;
+  }
+}
+
+/**
+ * Prepara el plan de la próxima clase a partir del PDF que sube la maestra
+ * (Gemini multimodal) + el contexto pedagógico del alumno.
+ * Solo debe llamarse desde Route Handlers (server-side).
+ */
+export async function prepararPlanClase(
+  pdfBase64: string | null,
+  contexto: {
+    alumno: string;
+    grado: string;
+    materia: Materia;
+    tema: string;
+    duracionMin: number;
+    historial: string;
+  }
+): Promise<PlanClase> {
+  try {
+    const genAI = getGenAI();
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 2048,
+        responseMimeType: "application/json",
+        responseSchema: PlanClaseResponseSchema,
+      },
+    });
+
+    // Si hay PDF, se incluye como contexto adicional; si no, Tiza trabaja
+    // solo con el contexto pedagógico del alumno que ya tiene Trazos.
+    const userParts = pdfBase64
+      ? [
+          { inlineData: { mimeType: "application/pdf" as const, data: pdfBase64 } },
+          { text: "Preparame el plan de esta clase usando el material adjunto y el contexto del alumno." },
+        ]
+      : [
+          { text: "Preparame el plan de esta clase basándote en el contexto del alumno." },
+        ];
+
+    const result = await model.generateContent({
+      systemInstruction: buildPlanClasePrompt(contexto),
+      contents: [{ role: "user", parts: userParts }],
+    });
+
+    const text = result.response.text();
+    const parsed = JSON.parse(text) as Omit<PlanClase, "generado_at">;
+
+    return { ...parsed, generado_at: new Date().toISOString() };
+  } catch (error) {
+    console.warn("⚠️ Gemini falló al preparar el plan. Usando modo MOCK.", error);
+    await new Promise((r) => setTimeout(r, 2000));
+    const total = contexto.duracionMin || 60;
+    return {
+      objetivo: `Que ${contexto.alumno} repase y afiance "${contexto.tema || "el tema de la clase"}" con ejercicios guiados. (Plan simulado: no se encontró la clave de IA o hubo un error).`,
+      momentos: [
+        { titulo: "Apertura", minutos: Math.round(total * 0.2), detalle: "Repaso breve de lo visto la clase anterior y conexión con el tema de hoy." },
+        { titulo: "Desarrollo", minutos: Math.round(total * 0.6), detalle: "Explicación del tema y resolución conjunta de ejercicios del material, de menor a mayor dificultad." },
+        { titulo: "Cierre", minutos: Math.round(total * 0.2), detalle: "Puesta en común, dudas y mini-autoevaluación de lo aprendido." },
+      ],
+      tarea: "Resolver 3 ejercicios similares a los trabajados en clase.",
+      generado_at: new Date().toISOString(),
+    };
   }
 }
 
