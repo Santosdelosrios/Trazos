@@ -48,9 +48,10 @@ export default function Sidebar({ isOpen, setIsOpen, plan = "free" }: SidebarPro
 
       {/* Mobile Close Button */}
       <div className="flex items-center justify-end p-4 md:hidden">
-        <button 
+        <button
           onClick={() => setIsOpen(false)}
           className="p-1.5 text-surface-400 hover:text-surface-700 hover:bg-surface-100 rounded-lg transition-colors"
+          aria-label="Cerrar menú"
         >
           <X size={20} />
         </button>

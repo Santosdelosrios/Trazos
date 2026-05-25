@@ -7,6 +7,7 @@ import { actualizarEstadoPago } from "@/app/(dashboard)/finanzas/actions";
 import { useTransition } from "react";
 import { recordatorioPago, generarLinkWhatsApp } from "@/lib/finanzas/plantillasWhatsApp";
 import { CreditCard, MessageSquare, CheckCircle2, Check, Trash2 } from "lucide-react";
+import { formatFechaDiaMes } from "@/lib/utils/fechas";
 
 interface PagoConAlumno extends Omit<Pago, "alumnos"> {
   alumnos?: { nombre: string; apellido: string };
@@ -68,27 +69,22 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
           const nombreAlumno = pago.alumnos
             ? `${pago.alumnos.nombre} ${pago.alumnos.apellido}`
             : "—";
-          const fechaStr = pago.fecha_pago
-            ? new Date(pago.fecha_pago + "T12:00:00").toLocaleDateString("es-AR", {
-                day: "numeric",
-                month: "short",
-              })
-            : "—";
+          const fechaStr = formatFechaDiaMes(pago.fecha_pago);
 
           return (
             <div
               key={pago.id}
-              className="rounded-2xl border border-surface-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+              className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
             >
               {/* Top row: Name + Amount */}
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-surface-900 truncate">
                     {nombreAlumno}
                   </p>
-                  <p className="text-xs text-surface-400 mt-0.5">{fechaStr}</p>
+                  <p className="text-xs text-surface-400 mt-1">{fechaStr}</p>
                 </div>
-                <div className="text-right flex items-center gap-2">
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <p className="text-lg font-black text-surface-900">
                     {formatearMonto(pago.monto)}
                   </p>
@@ -101,13 +97,13 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
               </div>
 
               {/* Actions row */}
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-surface-100">
+              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-surface-100">
                 {pago.estado === "pendiente" && (
                   <>
                     <button
                       onClick={() => handleCambiarEstado(pago.id, "pagado")}
                       disabled={isPending}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-success-500 px-3 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-success-400 transition-all active:scale-95 disabled:opacity-50"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-success-500 px-3 py-3 min-h-11 text-xs font-bold text-white shadow-sm hover:bg-success-400 transition-all active:scale-95 disabled:opacity-50"
                     >
                       <CheckCircle2 size={14} /> Marcar Pagado
                     </button>
@@ -125,10 +121,11 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center rounded-xl bg-surface-100 p-2.5 text-surface-600 hover:bg-surface-200 transition-colors"
+                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-100 text-surface-600 hover:bg-surface-200 transition-colors"
                       title="Enviar recordatorio"
+                      aria-label="Enviar recordatorio por WhatsApp"
                     >
-                      <MessageSquare size={16} />
+                      <MessageSquare size={18} />
                     </a>
                   </>
                 )}
@@ -140,10 +137,11 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                 <button
                   onClick={() => handleEliminar(pago.id)}
                   disabled={isPending}
-                  className="rounded-xl p-2.5 text-surface-400 hover:bg-danger-50 hover:text-danger-500 transition-colors disabled:opacity-50"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-surface-400 hover:bg-danger-50 hover:text-danger-500 transition-colors disabled:opacity-50"
                   title="Eliminar"
+                  aria-label="Eliminar cobro"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             </div>
@@ -198,12 +196,7 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-surface-500">
-                      {pago.fecha_pago
-                        ? new Date(pago.fecha_pago + "T12:00:00").toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                          })
-                        : "—"}
+                      {formatFechaDiaMes(pago.fecha_pago)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">

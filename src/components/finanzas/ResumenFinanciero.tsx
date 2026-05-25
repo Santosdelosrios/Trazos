@@ -3,6 +3,8 @@ import type { ResumenFinancieroMes } from "@/lib/types/database";
 import Link from "next/link";
 import { Wallet, AlertCircle, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 
+const ESTIMATED_AVG_PAYMENT = 1000;
+
 interface Props {
   resumen: ResumenFinancieroMes | null;
 }
@@ -13,8 +15,7 @@ export default function ResumenFinanciero({ resumen }: Props) {
   const neto = resumen?.ganancia_neta ?? 0;
   const pendientes = resumen?.pagos_pendientes ?? 0;
 
-  // Calculate percentages for progress bars
-  const totalEsperado = ingresos + (pendientes > 0 ? pendientes * 1000 : 0); // rough estimation
+  const totalEsperado = ingresos + (pendientes > 0 ? pendientes * ESTIMATED_AVG_PAYMENT : 0);
   const cobradoPct = totalEsperado > 0 ? Math.min((ingresos / totalEsperado) * 100, 100) : 0;
   const gastosPct = ingresos > 0 ? Math.min((gastos / ingresos) * 100, 100) : 0;
 

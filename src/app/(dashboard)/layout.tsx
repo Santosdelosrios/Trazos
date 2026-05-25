@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import DashboardLayoutWrapper from "@/components/layout/DashboardLayoutWrapper";
 import TizaChatWrapper from "@/components/asistente/TizaChatWrapper";
+import { ToastProvider } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/plan";
 
@@ -14,11 +15,13 @@ export default async function DashboardLayout({
   const plan = user ? await getPlan(supabase, user.id) : "free";
 
   return (
-    <DashboardLayoutWrapper plan={plan}>
-      {children}
-      <Suspense fallback={null}>
-        <TizaChatWrapper />
-      </Suspense>
-    </DashboardLayoutWrapper>
+    <ToastProvider>
+      <DashboardLayoutWrapper plan={plan}>
+        {children}
+        <Suspense fallback={null}>
+          <TizaChatWrapper />
+        </Suspense>
+      </DashboardLayoutWrapper>
+    </ToastProvider>
   );
 }

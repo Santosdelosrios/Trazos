@@ -1,8 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import type { CategoriaGasto, EstadoPago } from "@/lib/types/database";
+import {
+  GuardarTarifaSchema,
+  RegistrarGastoSchema,
+  RegistrarPagoSchema,
+  CargarCreditosSchema,
+  RegistrarPagoCuentaCorrienteSchema,
+} from "@/lib/validations/schemas";
+import { TAG } from "@/lib/db/tags";
 
 // ============================================================
 // TARIFAS
@@ -12,6 +20,12 @@ export async function guardarTarifa(data: {
   valor_hora: number;
   notas?: string;
 }) {
+  // Validación zod centralizada
+  const parsed = GuardarTarifaSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
@@ -26,7 +40,7 @@ export async function guardarTarifa(data: {
   // Crear nueva tarifa activa
   const { error } = await supabase.from("tarifas").insert({
     maestra_id: user.id,
-    valor_hora: data.valor_hora,
+    valor_hora: parsed.data.valor_hora,
     vigente_desde: new Date().toISOString().split("T")[0],
     activa: true,
     notas: data.notas || null,
@@ -34,6 +48,7 @@ export async function guardarTarifa(data: {
 
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.TARIFAS, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/tarifas");
 }
@@ -49,21 +64,28 @@ export async function registrarGasto(data: {
   fecha: string;
   recurrente: boolean;
 }) {
+  const parsed = RegistrarGastoSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
   const { error } = await supabase.from("gastos").insert({
     maestra_id: user.id,
-    categoria: data.categoria,
-    descripcion: data.descripcion || null,
-    monto: data.monto,
-    fecha: data.fecha,
-    recurrente: data.recurrente,
+    categoria: parsed.data.categoria,
+    descripcion: parsed.data.descripcion || null,
+    monto: parsed.data.monto,
+    fecha: parsed.data.fecha,
+    recurrente: parsed.data.recurrente,
   });
 
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.GASTOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/gastos");
 }
@@ -73,6 +95,8 @@ export async function eliminarGasto(id: string) {
   const { error } = await supabase.from("gastos").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.GASTOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/gastos");
 }
@@ -90,23 +114,31 @@ export async function registrarPago(data: {
   nota?: string;
   periodo?: string;
 }) {
+  // Validamos sin clase_id (que es opcional y solo se setea internamente)
+  const parsed = RegistrarPagoSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
   const { error } = await supabase.from("pagos").insert({
     maestra_id: user.id,
-    alumno_id: data.alumno_id,
+    alumno_id: parsed.data.alumno_id,
     clase_id: data.clase_id || null,
-    monto: data.monto,
-    estado: data.estado,
-    fecha_pago: data.fecha_pago || null,
-    nota: data.nota || null,
-    periodo: data.periodo || null,
+    monto: parsed.data.monto,
+    estado: parsed.data.estado,
+    fecha_pago: parsed.data.fecha_pago || null,
+    nota: parsed.data.nota || null,
+    periodo: parsed.data.periodo || null,
   });
 
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -127,6 +159,8 @@ export async function actualizarEstadoPago(id: string, estado: EstadoPago) {
 
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -137,6 +171,8 @@ export async function eliminarPago(id: string) {
   const { error } = await supabase.from("pagos").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
 }
@@ -173,6 +209,8 @@ export async function guardarAbono(data: {
 
   if (error) throw new Error(error.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
 }
@@ -187,6 +225,11 @@ export async function cargarCreditos(data: {
   monto: number;
   nota?: string;
 }) {
+  const parsed = CargarCreditosSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
@@ -216,6 +259,8 @@ export async function cargarCreditos(data: {
 
   if (errMov) throw new Error(errMov.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
@@ -230,6 +275,11 @@ export async function registrarPagoCuentaCorriente(data: {
   monto: number;
   nota?: string;
 }) {
+  const parsed = RegistrarPagoCuentaCorrienteSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
@@ -259,6 +309,8 @@ export async function registrarPagoCuentaCorriente(data: {
 
   if (errMov) throw new Error(errMov.message);
 
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");

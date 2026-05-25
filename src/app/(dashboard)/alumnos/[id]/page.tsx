@@ -2,10 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight } from "lucide-react";
+import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight, BookOpen, History } from "lucide-react";
 import { getPlan } from "@/lib/plan";
 import ReporteButton from "@/components/premium/ReporteButton";
 import EditarAlumnoModal from "./EditarAlumnoModal";
+import EmptyState from "@/components/ui/EmptyState";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 import type { ModeloCobro } from "@/lib/types/database";
 
@@ -135,31 +136,39 @@ export default async function AlumnoPerfilPage({
           <span className="text-surface-900 font-medium">{alumno.nombre} {alumno.apellido}</span>
         </nav>
         
-        <div className="flex items-center gap-4 rounded-2xl bg-white p-6 shadow-sm border border-surface-200">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 text-2xl font-bold text-indigo-700">
-            {alumno.nombre.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-surface-900">
-              {alumno.nombre} {alumno.apellido}
-            </h1>
-            <p className="text-surface-600 flex items-center gap-2 mt-1">
-              <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
-                {alumno.grado}
-              </span>
-              {(() => {
-                const modeloConfig = MODELO_COBRO_CONFIG[(alumno.modelo_cobro || "por_clase") as ModeloCobro];
-                return (
-                  <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold", modeloConfig.bg, modeloConfig.color)}>
-                    {modeloConfig.icon} {modeloConfig.label}
-                  </span>
-                );
-              })()}
-              {alumno.notas && <span>· {alumno.notas}</span>}
-            </p>
+        <div className="rounded-2xl bg-white p-4 sm:p-6 shadow-sm border border-surface-200">
+          {/* Top row: avatar + identidad (siempre horizontal) */}
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 text-xl sm:text-2xl font-bold text-indigo-700">
+              {alumno.nombre.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-surface-900 leading-tight truncate">
+                {alumno.nombre} {alumno.apellido}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center rounded-md bg-surface-100 px-2 py-1 text-xs font-medium text-surface-600">
+                  {alumno.grado}
+                </span>
+                {(() => {
+                  const modeloConfig = MODELO_COBRO_CONFIG[(alumno.modelo_cobro || "por_clase") as ModeloCobro];
+                  return (
+                    <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-bold", modeloConfig.bg, modeloConfig.color)}>
+                      {modeloConfig.icon} {modeloConfig.label}
+                    </span>
+                  );
+                })()}
+              </div>
+              {alumno.notas && (
+                <p className="mt-1.5 text-xs text-surface-500 line-clamp-2">
+                  {alumno.notas}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Actions row: stack en mobile, fila en desktop */}
+          <div className="mt-4 flex flex-col gap-2 sm:mt-4 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
             <EditarAlumnoModal
               alumno={{
                 id: alumno.id,
@@ -173,7 +182,7 @@ export default async function AlumnoPerfilPage({
             />
             <Link
               href={`/clases/nueva?alumnoId=${alumno.id}`}
-              className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-all active:scale-95"
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 transition-all active:scale-95"
             >
               <Sparkles size={16} />
               Cerrar Clase
@@ -189,7 +198,7 @@ export default async function AlumnoPerfilPage({
         {/* Columna Izquierda: Temas (2/3 de ancho) */}
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-2xl bg-white shadow-sm border border-surface-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-surface-100 bg-surface-50/50">
+            <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-surface-100 bg-surface-50/50">
               <h2 className="text-lg font-semibold text-surface-900">
                 Evolución por Tema
               </h2>
@@ -199,17 +208,20 @@ export default async function AlumnoPerfilPage({
             </div>
             
             {temasArray.length === 0 ? (
-              <div className="p-12 text-center text-surface-500 text-sm">
-                Aún no hay evaluaciones para este alumno.
-              </div>
+              <EmptyState
+                icon={BookOpen}
+                size="compact"
+                title="Sin evaluaciones todavía"
+                description="Cuando cierres una clase con este alumno, vas a ver acá la evolución por tema."
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm text-surface-600">
                   <thead className="bg-surface-50 text-xs font-medium uppercase text-surface-500">
                     <tr>
-                      <th className="px-6 py-3">Tema</th>
-                      <th className="px-6 py-3 text-center">Nota Actual</th>
-                      <th className="px-6 py-3 text-center">Evolución</th>
+                      <th className="px-3 py-3 sm:px-6">Tema</th>
+                      <th className="px-3 py-3 text-center sm:px-6">Nota Actual</th>
+                      <th className="px-3 py-3 text-center sm:px-6">Evolución</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-100">
@@ -232,8 +244,8 @@ export default async function AlumnoPerfilPage({
 
                       return (
                         <tr key={tema.tema_id} className="hover:bg-surface-50/50 transition-colors">
-                          <td className="px-6 py-4">{tema.nombre}</td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-3 py-4 sm:px-6">{tema.nombre}</td>
+                          <td className="px-3 py-4 text-center sm:px-6">
                             <span className={cn(
                               "inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-sm font-bold",
                               tema.ultimaNota >= 4 ? "bg-success-100 text-success-700" :
@@ -243,7 +255,7 @@ export default async function AlumnoPerfilPage({
                               {tema.ultimaNota}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-3 py-4 text-center sm:px-6">
                             <div className="flex flex-col items-center">
                               <span className={cn("text-lg font-black", trendColor)}>
                                 {trendIcon}
@@ -268,15 +280,20 @@ export default async function AlumnoPerfilPage({
         {/* Columna Derecha: Historial (Timeline) */}
         <div className="lg:col-span-1 space-y-6">
           <div className="rounded-2xl bg-white shadow-sm border border-surface-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-surface-100 bg-surface-50/50">
+            <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-surface-100 bg-surface-50/50">
               <h2 className="text-lg font-semibold text-surface-900">
                 Últimas Clases
               </h2>
             </div>
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {!historial || historial.length === 0 ? (
-                <p className="text-sm text-surface-500 text-center">Sin actividad reciente.</p>
+                <EmptyState
+                  icon={History}
+                  size="compact"
+                  title="Sin actividad reciente"
+                  description="Las últimas clases cerradas aparecerán acá."
+                />
               ) : (
                 <div className="relative border-l border-surface-200 ml-3 space-y-8">
                   {historial.slice(0, 5).map((registro: any) => {

@@ -1,10 +1,20 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useCallback } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { eliminarClase } from "./actions";
-import { Search, Trash2, ChevronRight, Info, Loader2 } from "lucide-react";
+import { Search, Trash2, ChevronRight, Loader2, BookOpen } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
+
+function safeDate(...candidates: Array<string | null | undefined>): Date | null {
+  for (const value of candidates) {
+    if (!value) continue;
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
 
 interface HistorialItem {
   id: string; // id de clase_alumnos
@@ -31,6 +41,25 @@ export default function HistorialClient({ data }: HistorialClientProps) {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      startTransition(async () => {
+        try {
+          const res = await eliminarClase(id);
+          if (res?.error) {
+            alert("Error al eliminar: " + res.error);
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : "error desconocido";
+          alert("Hubo un problema de conexión: " + msg);
+        } finally {
+          setDeletingId(null);
+        }
+      });
+    },
+    [startTransition]
+  );
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
@@ -73,8 +102,122 @@ export default function HistorialClient({ data }: HistorialClientProps) {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm">
+      {/* Empty state global */}
+      {filteredData.length === 0 && (
+        <div className="rounded-2xl border border-surface-200 bg-white shadow-sm">
+          <EmptyState
+            icon={BookOpen}
+            title={search ? "Sin resultados" : "Todavía no cerraste clases"}
+            description={
+              search
+                ? "Probá con otro nombre de alumno o tema."
+                : "Las clases que cierres con ejercicios o evaluaciones aparecen acá."
+            }
+          />
+        </div>
+      )}
+
+      {/* Cards mobile */}
+      {filteredData.length > 0 && (
+        <ul className="space-y-3 md:hidden">
+          {filteredData.map((item) => {
+            const date = safeDate(item.respondido_at, item.clases.fecha);
+            const isExpress = item.nota === null && !item.respondido_at;
+            const showDelete = deletingId === item.id;
+            return (
+              <li
+                key={item.id}
+                className="rounded-2xl border border-surface-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-surface-900 truncate">
+                      {item.alumnos.nombre} {item.alumnos.apellido}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-surface-600" title={item.clases.tema}>
+                      {item.clases.tema}
+                    </p>
+                  </div>
+                  {isExpress ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-surface-200 bg-surface-100 px-2.5 py-1 text-xs font-bold text-surface-600">
+                      ⚡ Express
+                    </span>
+                  ) : item.nota !== null ? (
+                    <span
+                      className={cn(
+                        "inline-flex shrink-0 items-center justify-center rounded-lg px-3 py-1.5 text-base font-bold",
+                        item.nota >= 4
+                          ? "bg-success-100 text-success-700"
+                          : item.nota >= 2.5
+                            ? "bg-warning-100 text-warning-800"
+                            : "bg-danger-100 text-danger-700"
+                      )}
+                    >
+                      {item.nota}
+                    </span>
+                  ) : (
+                    <span className="text-xs italic text-surface-400">Pendiente</span>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-surface-100 pt-3">
+                  <div className="flex items-center gap-3 text-xs text-surface-500">
+                    <span suppressHydrationWarning>
+                      {date ? date.toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : "—"}
+                    </span>
+                    {!isExpress && (
+                      <span className="rounded-full bg-surface-100 px-2 py-0.5 font-medium text-surface-700">
+                        {item.total_correctas}/3
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/clases/${item.id}`}
+                      className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-3 text-sm font-bold text-primary-600 hover:bg-primary-50"
+                    >
+                      Ver <ChevronRight size={16} />
+                    </Link>
+                    {showDelete ? (
+                      <>
+                        <button
+                          disabled={isPending}
+                          onClick={() => handleDelete(item.id)}
+                          className={cn(
+                            "h-11 rounded-lg bg-danger-500 px-3 text-xs font-bold text-white hover:bg-danger-400",
+                            isPending && "cursor-not-allowed opacity-50"
+                          )}
+                        >
+                          {isPending ? <Loader2 size={14} className="animate-spin" /> : "Borrar"}
+                        </button>
+                        <button
+                          disabled={isPending}
+                          onClick={() => setDeletingId(null)}
+                          className="h-11 rounded-lg bg-surface-100 px-3 text-xs font-bold text-surface-700 hover:bg-surface-200"
+                        >
+                          No
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setDeletingId(item.id)}
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-surface-400 hover:bg-danger-50 hover:text-danger-500"
+                        title="Eliminar registro"
+                        aria-label="Eliminar registro"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Tabla desktop */}
+      <div className="hidden overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-surface-600">
             <thead className="bg-surface-50 text-xs font-medium uppercase text-surface-500">
@@ -88,25 +231,19 @@ export default function HistorialClient({ data }: HistorialClientProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {filteredData.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-surface-500">
-                    No se encontraron resultados para tu búsqueda.
-                  </td>
-                </tr>
-              ) : (
+              {filteredData.length > 0 &&
                 filteredData.map((item) => {
-                  const date = item.respondido_at ? new Date(item.respondido_at) : new Date(item.clases.fecha);
+                  const date = safeDate(item.respondido_at, item.clases.fecha);
                   const isExpress = item.nota === null && !item.respondido_at;
                   return (
                     <tr key={item.id} className="hover:bg-surface-50/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col">
                           <span suppressHydrationWarning className="font-bold text-surface-900">
-                            {date.toLocaleDateString("es-AR", { day: 'numeric', month: 'short' })}
+                            {date ? date.toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : "—"}
                           </span>
                           <span suppressHydrationWarning className="text-[10px] text-surface-400">
-                            {date.toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
+                            {date ? date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : ""}
                           </span>
                         </div>
                       </td>
@@ -153,20 +290,7 @@ export default function HistorialClient({ data }: HistorialClientProps) {
                               <span className="text-[10px] text-danger-500 font-bold">¿Borrar?</span>
                               <button
                                 disabled={isPending}
-                                onClick={() => {
-                                  startTransition(async () => {
-                                    try {
-                                      const res = await eliminarClase(item.id);
-                                      if (res?.error) {
-                                        alert("Error al eliminar: " + res.error);
-                                      }
-                                      setDeletingId(null);
-                                    } catch (error: any) {
-                                      alert("Hubo un problema de conexión: " + error.message);
-                                      setDeletingId(null);
-                                    }
-                                  });
-                                }}
+                                onClick={() => handleDelete(item.id)}
                                 className={cn(
                                   "rounded bg-danger-500 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-danger-400",
                                   isPending && "opacity-50 cursor-not-allowed"
@@ -199,8 +323,7 @@ export default function HistorialClient({ data }: HistorialClientProps) {
                       </td>
                     </tr>
                   );
-                })
-              )}
+                })}
             </tbody>
           </table>
         </div>

@@ -1,3 +1,6 @@
+// NOTA: este módulo solo debe importarse desde route handlers / server
+// components. Importarlo desde un client component infla el bundle
+// con el SDK de Gemini (~50kb).
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import { buildSystemPrompt, buildUserPrompt, buildHitoPrompt } from "./prompts";
 import { parseEjercicios } from "./parser";
