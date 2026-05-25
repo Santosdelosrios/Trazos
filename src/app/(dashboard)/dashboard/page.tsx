@@ -90,14 +90,18 @@ export default async function DashboardPage() {
 
   return (
     <div className="animate-fade-in-up space-y-8 pb-12">
-      <div>
-        <h1 className="trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
-          ¡Hola, {nombreMaestra}!
-        </h1>
-        <p className="mt-3 text-sm text-surface-500 font-medium">
-          {subtitulo}
-        </p>
-      </div>
+      {/* Saludo suelto: solo en estado vacío/onboarding (sin BriefingCard).
+          Con alumnos, el saludo lo da la tarjeta del briefing. */}
+      {totalAlumnos === 0 && (
+        <div>
+          <h1 className="trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
+            ¡Hola, {nombreMaestra}!
+          </h1>
+          <p className="mt-3 text-sm text-surface-500 font-medium">
+            {subtitulo}
+          </p>
+        </div>
+      )}
 
       {!onboardingComplete && (
         <TutorialPrimerosPasos nombreMaestra={nombreMaestra} progress={onboardingProgress} />
