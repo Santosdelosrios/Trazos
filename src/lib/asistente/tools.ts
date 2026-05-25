@@ -234,5 +234,15 @@ export const TOOL_DECLARATIONS = [
       required: ["alumno_id", "creditos"],
     },
   },
+  {
+    name: "obtener_briefing_hoy",
+    description:
+      "Devuelve el resumen del día de la maestra: cuántas clases tiene hoy y cuál es la próxima, cuántas familias tienen pagos pendientes y el monto total adeudado, y si hoy es feriado. Es una acción de consulta: ejecutala directamente cuando la maestra pregunte '¿cómo viene mi día?', 'qué tengo hoy', 'resumime el día', 'cómo arranca la semana' o similares.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
 ] as const;
 

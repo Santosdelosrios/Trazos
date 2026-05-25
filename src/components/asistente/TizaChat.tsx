@@ -186,6 +186,25 @@ export default function TizaChat() {
     sendMessage(input);
   };
 
+  // Permite abrir Tiza y autoenviar un mensaje desde otros componentes
+  // (ej: el botón "Armar con Tiza" del briefing) vía CustomEvent.
+  const sendMessageRef = useRef(sendMessage);
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ message?: string }>).detail;
+      setIsOpen(true);
+      if (detail?.message) {
+        sendMessageRef.current(detail.message);
+      }
+    };
+    window.addEventListener("tiza:prefill", handler);
+    return () => window.removeEventListener("tiza:prefill", handler);
+  }, []);
+
   // --- Render a single message bubble with WhatsApp preview support ---
   const renderMessageContent = (msg: ChatMessage) => {
     if (msg.role !== "assistant") {

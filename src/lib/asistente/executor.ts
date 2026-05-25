@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolResult } from "./types";
+import { obtenerBriefing } from "@/lib/briefing";
 
 /**
  * Punto de entrada principal. Rutea la tool call a su implementación.
@@ -39,6 +40,8 @@ export async function executeTool(
         return await cambiarModeloCobro(supabase, maestraId, args);
       case "cargar_creditos":
         return await cargarCreditosTool(supabase, maestraId, args);
+      case "obtener_briefing_hoy":
+        return await obtenerBriefingHoy(supabase, maestraId);
       default:
         return {
           success: false,
@@ -640,6 +643,35 @@ async function cargarCreditosTool(
     success: true,
     data: { creditos_sumados: creditos, monto_cobrado: monto },
     summary: `Agregué ${creditos} créditos a la bolsa del alumno (por $${monto}).`,
+  };
+}
+
+async function obtenerBriefingHoy(
+  supabase: SupabaseClient,
+  maestraId: string
+): Promise<ToolResult> {
+  const b = await obtenerBriefing(supabase, maestraId);
+
+  return {
+    success: true,
+    data: {
+      clases_hoy: b.clasesHoy,
+      proxima_clase: b.proximaClase
+        ? `${b.proximaClase.hora} con ${b.proximaClase.alumno}`
+        : null,
+      familias_con_deuda: b.deudores.count,
+      monto_total_adeudado: b.deudores.total,
+      nombres_deudores: b.deudores.nombres,
+      feriado_hoy: b.feriadoHoy,
+    },
+    summary:
+      `Hoy tenés ${b.clasesHoy} clase(s)` +
+      (b.proximaClase ? ` (próxima ${b.proximaClase.hora})` : "") +
+      (b.deudores.count > 0
+        ? `. ${b.deudores.count} familia(s) deben $${b.deudores.total.toLocaleString("es-AR")}`
+        : ". Cobros al día") +
+      (b.feriadoHoy ? `. Ojo: hoy es feriado (${b.feriadoHoy})` : "") +
+      ".",
   };
 }
 
