@@ -166,6 +166,50 @@ export async function actualizarEstadoPago(id: string, estado: EstadoPago) {
   revalidatePath("/dashboard");
 }
 
+export async function actualizarPago(id: string, data: {
+  monto: number;
+  estado: EstadoPago;
+  fecha_pago?: string | null;
+  nota?: string | null;
+  periodo?: string | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Validamos con el mismo schema usado en la creación (acepta el subset)
+  const parsed = RegistrarPagoSchema.omit({ alumno_id: true }).safeParse({
+    monto: data.monto,
+    estado: data.estado,
+    fecha_pago: data.fecha_pago || undefined,
+    nota: data.nota || undefined,
+    periodo: data.periodo || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
+  const { error } = await supabase
+    .from("pagos")
+    .update({
+      monto: parsed.data.monto,
+      estado: parsed.data.estado,
+      fecha_pago: parsed.data.fecha_pago || null,
+      nota: parsed.data.nota || null,
+      periodo: parsed.data.periodo || null,
+    })
+    .eq("id", id)
+    .eq("maestra_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/cobranzas");
+  revalidatePath("/dashboard");
+}
+
 export async function eliminarPago(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("pagos").delete().eq("id", id);

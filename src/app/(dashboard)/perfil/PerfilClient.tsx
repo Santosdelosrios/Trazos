@@ -5,6 +5,7 @@ import { updateProfile, deleteAccount } from "./actions";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import PerfilStats from "./PerfilStats";
+import CobrosAutomaticosToggle from "./CobrosAutomaticosToggle";
 import {
   User,
   Mail,
@@ -32,6 +33,7 @@ interface ProfileData {
   totalAlumnos: number;
   totalClases: number;
   clasesMes: number;
+  cobrosAutomaticos: boolean;
 }
 
 export default function PerfilClient({
@@ -209,6 +211,9 @@ export default function PerfilClient({
         totalClases={profile.totalClases}
         clasesMes={profile.clasesMes}
       />
+
+      {/* Cobros automáticos */}
+      <CobrosAutomaticosToggle inicial={profile.cobrosAutomaticos} />
 
       {/* Mi Plan */}
       <div className="rounded-2xl bg-white border border-surface-200 shadow-sm overflow-hidden">

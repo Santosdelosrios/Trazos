@@ -11,6 +11,7 @@ import {
   PlanClaseSchema,
 } from "@/lib/validations/schemas";
 import type { PlanClase } from "@/lib/types/database";
+import { aplicarModeloCobroCierre } from "@/lib/finanzas/cierreClase";
 
 export async function planificarClase(rawInput: {
   alumno_id: string;
@@ -221,15 +222,14 @@ export async function cerrarClaseExpress(id: string) {
 
   if (agendaError || !agenda) throw new Error("Error al obtener la clase de la agenda");
 
-  // 2. Obtener datos del alumno (grado + modelo de cobro)
+  // 2. Obtener datos del alumno (grado)
   const { data: alumno } = await supabase
     .from("alumnos")
-    .select("grado, modelo_cobro, tarifa_override")
+    .select("grado")
     .eq("id", agenda.alumno_id)
     .single();
 
   const grado_target = alumno?.grado || 1;
-  const modelo_cobro = alumno?.modelo_cobro || "por_clase";
   const temaNombre = agenda.tema_previsto || "Clase sin tema";
 
   // 3. Buscar o crear el tema
@@ -286,52 +286,15 @@ export async function cerrarClaseExpress(id: string) {
     alumno_id: agenda.alumno_id,
   });
 
-  // 6. Registrar cobro/movimiento según modelo de facturación
+  // 6. Aplicar lógica de cobro según el modelo del alumno + flag de maestra
   const monto = agenda.tarifa_esperada || 0;
-
-  switch (modelo_cobro) {
-    case "por_clase":
-      // Modelo original: crear un pago pendiente vinculado a la clase
-      await supabase.from("pagos").insert({
-        maestra_id: user.id,
-        alumno_id: agenda.alumno_id,
-        clase_id: clase.id,
-        monto: monto,
-        estado: "pendiente",
-      });
-      break;
-
-    case "bolsa_creditos":
-      // Descontar 1 crédito de la bolsa
-      await supabase.from("movimientos_cuenta").insert({
-        maestra_id: user.id,
-        alumno_id: agenda.alumno_id,
-        tipo_movimiento: "clase_descontada",
-        monto: 0,
-        creditos: -1,
-        referencia_id: clase.id,
-        descripcion: `Clase: ${temaNombre}`,
-      });
-      break;
-
-    case "cuenta_corriente":
-      // Registrar cargo (monto negativo = deuda)
-      await supabase.from("movimientos_cuenta").insert({
-        maestra_id: user.id,
-        alumno_id: agenda.alumno_id,
-        tipo_movimiento: "clase_descontada",
-        monto: -monto,
-        creditos: 0,
-        referencia_id: clase.id,
-        descripcion: `Clase: ${temaNombre}`,
-      });
-      break;
-
-    case "abono_mensual":
-      // No se genera cargo por clase individual.
-      // El cargo es mensual y se gestiona desde Finanzas.
-      break;
-  }
+  await aplicarModeloCobroCierre(supabase, user.id, {
+    clase_id: clase.id,
+    alumno_id: agenda.alumno_id,
+    monto,
+    fecha_clase: agenda.fecha,
+    descripcion: `Clase: ${temaNombre}`,
+  });
 
   // 7. Marcar agenda como completada
   await supabase
@@ -342,4 +305,5 @@ export async function cerrarClaseExpress(id: string) {
   revalidatePath("/agenda");
   revalidatePath("/clases");
   revalidatePath("/dashboard");
+  revalidatePath("/finanzas");
 }

@@ -163,10 +163,46 @@ export const ActualizarAlumnoSchema = z.object({
   notas: z.string().max(500).optional().nullable(),
   modelo_cobro: ModeloCobroSchema,
   tarifa_override: z.coerce.number().min(0, "La tarifa no puede ser negativa.").nullable().optional(),
+  familia_id: z.string().uuid("ID de familia inválido.").nullable().optional(),
+  responsable_nombre: z.string().max(120).nullable().optional(),
+  responsable_telefono: z.string().max(20).nullable().optional(),
 });
 
 export type CrearAlumnoInput = z.infer<typeof CrearAlumnoSchema>;
 export type ActualizarAlumnoInput = z.infer<typeof ActualizarAlumnoSchema>;
+
+// ------------------------------------------------------------
+// Schemas: Familias (017_familias.sql)
+// ------------------------------------------------------------
+
+const NombreFamiliaSchema = z
+  .string()
+  .min(1, "El nombre de la familia es obligatorio.")
+  .max(120, "El nombre no puede superar los 120 caracteres.");
+
+const TelefonoSchema = z
+  .string()
+  .max(20, "El teléfono no puede superar los 20 caracteres.")
+  .refine(
+    (v) => v.replace(/\D/g, "").length === 0 || v.replace(/\D/g, "").length >= 8,
+    "El teléfono parece incompleto."
+  );
+
+export const GuardarFamiliaSchema = z.object({
+  nombre: NombreFamiliaSchema,
+  responsable_nombre: z.string().max(120).optional().nullable(),
+  responsable_telefono: TelefonoSchema.optional().nullable(),
+  datos_pago_override: z.string().max(500).optional().nullable(),
+  notas: z.string().max(500).optional().nullable(),
+});
+
+export const AsignarFamiliaSchema = z.object({
+  alumno_id: z.string().uuid("ID de alumno inválido."),
+  familia_id: z.string().uuid("ID de familia inválido.").nullable(),
+});
+
+export type GuardarFamiliaInput = z.infer<typeof GuardarFamiliaSchema>;
+export type AsignarFamiliaInput = z.infer<typeof AsignarFamiliaSchema>;
 
 // ------------------------------------------------------------
 // Schemas: Finanzas

@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { checkAlumnoLimit } from "@/lib/plan";
 import { CrearAlumnoSchema, ActualizarAlumnoSchema } from "@/lib/validations/schemas";
 import { TAG } from "@/lib/db/tags";
+import { normalizarTelefonoAR } from "@/lib/finanzas/responsable";
 
 export async function createAlumno(formData: FormData) {
   const supabase = await createClient();
@@ -90,6 +91,8 @@ export async function updateAlumno(id: string, formData: FormData) {
   }
 
   const tarifaRaw = formData.get("tarifa_override") as string | null;
+  const familiaRaw = formData.get("familia_id") as string | null;
+  const respTelRaw = formData.get("responsable_telefono") as string | null;
   const parsed = ActualizarAlumnoSchema.safeParse({
     nombre: formData.get("nombre"),
     apellido: formData.get("apellido"),
@@ -97,6 +100,9 @@ export async function updateAlumno(id: string, formData: FormData) {
     notas: formData.get("notas") || undefined,
     modelo_cobro: formData.get("modelo_cobro") || "por_clase",
     tarifa_override: tarifaRaw && tarifaRaw.trim() !== "" ? tarifaRaw : null,
+    familia_id: familiaRaw && familiaRaw.trim() !== "" ? familiaRaw : null,
+    responsable_nombre: (formData.get("responsable_nombre") as string | null) || null,
+    responsable_telefono: respTelRaw && respTelRaw.trim() !== "" ? respTelRaw : null,
   });
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
@@ -111,6 +117,9 @@ export async function updateAlumno(id: string, formData: FormData) {
       notas: parsed.data.notas || null,
       modelo_cobro: parsed.data.modelo_cobro,
       tarifa_override: parsed.data.tarifa_override,
+      familia_id: parsed.data.familia_id ?? null,
+      responsable_nombre: parsed.data.responsable_nombre ?? null,
+      responsable_telefono: normalizarTelefonoAR(parsed.data.responsable_telefono ?? null),
     })
     .eq("id", id)
     .eq("maestra_id", user.id);
@@ -121,6 +130,8 @@ export async function updateAlumno(id: string, formData: FormData) {
 
   revalidatePath(`/alumnos/${id}`);
   revalidateTag(TAG.ALUMNOS, "max");
+  revalidateTag(TAG.FAMILIAS, "max");
   revalidatePath("/alumnos");
+  revalidatePath("/finanzas/cuentas");
   return { success: true };
 }

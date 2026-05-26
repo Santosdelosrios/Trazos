@@ -57,7 +57,49 @@ export interface Alumno {
   modelo_cobro: ModeloCobro;
   tarifa_override?: number | null;
   saldo_actual: number;
+  familia_id?: string | null;
+  responsable_nombre?: string | null;
+  responsable_telefono?: string | null;
   created_at: string;
+}
+
+// ------------------------------------------------------------
+// Familias (017_familias.sql)
+// ------------------------------------------------------------
+
+export interface Familia {
+  id: string;
+  maestra_id: string;
+  nombre: string;
+  responsable_nombre?: string | null;
+  responsable_telefono?: string | null;
+  datos_pago_override?: string | null;
+  notas?: string | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Resultado de saldos_por_familia(maestra_id). */
+export interface SaldoFamilia {
+  familia_id: string;
+  nombre: string;
+  responsable_nombre: string | null;
+  responsable_telefono: string | null;
+  cant_alumnos: number;
+  saldo_total: number;
+  ultimo_pago: string | null;   // YYYY-MM-DD
+  ultima_clase: string | null;  // ISO timestamp
+}
+
+/** Resultado de detalle_familia(familia_id) — alumnos miembros con saldo. */
+export interface DetalleFamiliaItem {
+  alumno_id: string;
+  nombre: string;
+  apellido: string;
+  modelo_cobro: ModeloCobro;
+  saldo_actual: number;
+  tarifa_efectiva: number;
 }
 
 export interface Clase {

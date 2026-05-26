@@ -3,9 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
-import type { ResumenFinancieroMes, EstadoPago } from "@/lib/types/database";
+import DeudoresCard from "@/components/finanzas/DeudoresCard";
+import BannerCobrosAutomaticos from "@/components/finanzas/BannerCobrosAutomaticos";
+import type { ResumenFinancieroMes, EstadoPago, ModeloCobro } from "@/lib/types/database";
 import { ESTADO_PAGO_CONFIG } from "@/lib/types/database";
-import { Wallet, CreditCard, Package, Calculator, ChevronRight } from "lucide-react";
+import { Wallet, CreditCard, Package, Calculator, ChevronRight, Users } from "lucide-react";
+
+const MODELOS_DEUDA_MONETARIA: ModeloCobro[] = ["por_clase", "abono_mensual", "cuenta_corriente"];
 
 export const metadata = {
   title: "Finanzas | Trazos",
@@ -27,6 +31,9 @@ export default async function FinanzasPage() {
     { data: ultimosPagos },
     { data: tarifaData },
     { data: gastosData },
+    { data: deudoresAlumnosRaw },
+    { data: deudoresFamiliasRaw },
+    { data: maestraFlags },
   ] = await Promise.all([
     // Resumen del mes via RPC
     supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
@@ -56,12 +63,63 @@ export default async function FinanzasPage() {
       .gte("fecha", startOfMonth.toISOString().split("T")[0])
       .order("fecha", { ascending: false })
       .limit(5),
+
+    // Alumnos con saldo > 0 (deuda monetaria) y SIN familia
+    supabase
+      .from("alumnos")
+      .select("id, nombre, apellido, modelo_cobro, saldo_actual, familia_id")
+      .eq("maestra_id", user.id)
+      .in("modelo_cobro", MODELOS_DEUDA_MONETARIA)
+      .gt("saldo_actual", 0),
+
+    // Saldos por familia (RPC ya filtra modelos de deuda)
+    supabase.rpc("saldos_por_familia", { p_maestra_id: user.id }),
+
+    // Flag de cobros automáticos para decidir si mostrar el banner
+    supabase
+      .from("maestras")
+      .select("cobros_automaticos_clases")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
+
+  const mostrarBannerCobrosAuto = maestraFlags?.cobros_automaticos_clases === false;
 
   const resumen: ResumenFinancieroMes | null = resumenData?.[0] ?? null;
   const tarifaActual = tarifaData?.[0]?.valor_hora ?? null;
 
+  // Armar top deudores: combinamos familias (1 fila) + alumnos sueltos
+  const deudoresAlumnos = (deudoresAlumnosRaw ?? []) as Array<{
+    id: string; nombre: string; apellido: string;
+    modelo_cobro: ModeloCobro; saldo_actual: number; familia_id: string | null;
+  }>;
+  const deudoresSueltos = deudoresAlumnos
+    .filter((a) => !a.familia_id)
+    .map((a) => ({
+      kind: "alumno" as const,
+      id: a.id,
+      nombre: `${a.nombre} ${a.apellido}`.trim(),
+      saldo: Number(a.saldo_actual) || 0,
+    }));
+  const deudoresFamilias = ((deudoresFamiliasRaw ?? []) as Array<{
+    familia_id: string; nombre: string; saldo_total: number;
+  }>)
+    .filter((f) => Number(f.saldo_total) > 0)
+    .map((f) => ({
+      kind: "familia" as const,
+      id: f.familia_id,
+      nombre: f.nombre,
+      saldo: Number(f.saldo_total) || 0,
+    }));
+  const todosDeudores = [...deudoresFamilias, ...deudoresSueltos];
+  const totalAdeudado = todosDeudores.reduce((acc, d) => acc + d.saldo, 0);
+  const topDeudores = todosDeudores
+    .slice()
+    .sort((a, b) => b.saldo - a.saldo)
+    .slice(0, 5);
+
   const subpages = [
+    { href: "/finanzas/cuentas", label: "Cuentas", icon: <Users size={24} />, desc: "Saldos por alumno y familia" },
     { href: "/finanzas/cobranzas", label: "Cobranzas", icon: <CreditCard size={24} />, desc: "Registrar y controlar pagos" },
     { href: "/finanzas/gastos", label: "Gastos", icon: <Package size={24} />, desc: "Viáticos, materiales y más" },
     { href: "/finanzas/tarifas", label: "Tarifas", icon: <Calculator size={24} />, desc: "Calculá tu valor hora" },
@@ -79,11 +137,17 @@ export default async function FinanzasPage() {
         </p>
       </div>
 
+      {/* Banner: invitación a activar cobros automáticos (solo si está apagado) */}
+      {mostrarBannerCobrosAuto && <BannerCobrosAutomaticos />}
+
+      {/* Card destacada: deudores */}
+      <DeudoresCard total={totalAdeudado} top={topDeudores} />
+
       {/* Resumen widget */}
       <ResumenFinanciero resumen={resumen} />
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {subpages.map((page) => (
           <Link
             key={page.href}

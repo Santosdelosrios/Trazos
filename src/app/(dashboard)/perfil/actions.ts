@@ -37,6 +37,22 @@ export async function updateProfile(formData: FormData) {
   redirect("/perfil?success=true");
 }
 
+export async function setCobrosAutomaticos(activado: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  const { error } = await supabase
+    .from("maestras")
+    .update({ cobros_automaticos_clases: activado })
+    .eq("id", user.id);
+
+  if (error) throw new Error("No se pudo actualizar la preferencia: " + error.message);
+
+  revalidatePath("/perfil");
+  revalidatePath("/finanzas");
+}
+
 export async function deleteAccount() {
   const supabase = await createClient();
 
