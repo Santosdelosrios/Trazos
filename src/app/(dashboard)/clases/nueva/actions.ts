@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { EjercicioGenerado } from "@/lib/types/database";
+import { aplicarModeloCobroCierre } from "@/lib/finanzas/cierreClase";
 
 export async function createClaseAndVinculo(data: {
   temas: string[];
@@ -113,6 +114,10 @@ export async function registrarCobroClase(data: {
   alumno_id: string;
   monto: number;
   duracion_real: number;
+  /** Conservado por compatibilidad con el caller actual: si la maestra marca
+   *  la clase como "pagada" al cerrarla, generamos el pago en ese estado.
+   *  Si "pendiente" (default), delegamos al helper unificado que respeta
+   *  el flag de cobros automáticos. */
   estado: "pagado" | "pendiente";
 }) {
   const supabase = await createClient();
@@ -125,56 +130,49 @@ export async function registrarCobroClase(data: {
     .update({ duracion_real: data.duracion_real })
     .eq("id", data.clase_id);
 
-  // 2. Obtener modelo de cobro del alumno
-  const { data: alumno } = await supabase
-    .from("alumnos")
-    .select("modelo_cobro")
-    .eq("id", data.alumno_id)
-    .single();
+  // 2. Obtener fecha de la clase (para detectar excedentes mensuales)
+  const { data: clase } = await supabase
+    .from("clases")
+    .select("fecha")
+    .eq("id", data.clase_id)
+    .maybeSingle();
+  const fechaClase = (clase?.fecha as string | undefined)?.slice(0, 10)
+    ?? new Date().toISOString().slice(0, 10);
 
-  const modelo_cobro = alumno?.modelo_cobro || "por_clase";
+  // 3. Si la maestra marcó "pagado" al cerrar, registramos directo el pago
+  //    cobrado (mantiene el comportamiento previo de este caller). El helper
+  //    unificado solo cubre el camino "pendiente" / movimientos.
+  if (data.estado === "pagado") {
+    // Validamos modelo: solo tiene sentido en por_clase y abono_mensual
+    const { data: alumno } = await supabase
+      .from("alumnos")
+      .select("modelo_cobro")
+      .eq("id", data.alumno_id)
+      .maybeSingle();
+    const modelo = alumno?.modelo_cobro || "por_clase";
 
-  // 3. Registrar según modelo
-  switch (modelo_cobro) {
-    case "por_clase": {
+    if (modelo === "por_clase" || modelo === "abono_mensual") {
       const { error } = await supabase.from("pagos").insert({
         maestra_id: user.id,
         alumno_id: data.alumno_id,
         clase_id: data.clase_id,
         monto: data.monto,
-        estado: data.estado,
-        fecha_pago: data.estado === "pagado" ? new Date().toISOString().split("T")[0] : null,
+        estado: "pagado",
+        fecha_pago: new Date().toISOString().split("T")[0],
+        origen: "manual",
       });
       if (error) throw new Error("Error al registrar cobro: " + error.message);
-      break;
+      return;
     }
-
-    case "bolsa_creditos":
-      await supabase.from("movimientos_cuenta").insert({
-        maestra_id: user.id,
-        alumno_id: data.alumno_id,
-        tipo_movimiento: "clase_descontada",
-        monto: 0,
-        creditos: -1,
-        referencia_id: data.clase_id,
-        descripcion: "Clase cerrada con evaluación",
-      });
-      break;
-
-    case "cuenta_corriente":
-      await supabase.from("movimientos_cuenta").insert({
-        maestra_id: user.id,
-        alumno_id: data.alumno_id,
-        tipo_movimiento: "clase_descontada",
-        monto: -data.monto,
-        creditos: 0,
-        referencia_id: data.clase_id,
-        descripcion: "Clase cerrada con evaluación",
-      });
-      break;
-
-    case "abono_mensual":
-      // No hay cargo por clase individual en este modelo
-      break;
+    // Para bolsa/cta corriente, "pagado" no aplica → cae al helper unificado.
   }
+
+  // 4. Path por defecto: helper unificado (respeta flag y tope)
+  await aplicarModeloCobroCierre(supabase, user.id, {
+    clase_id: data.clase_id,
+    alumno_id: data.alumno_id,
+    monto: data.monto,
+    fecha_clase: fechaClase,
+    descripcion: "Clase cerrada con evaluación",
+  });
 }

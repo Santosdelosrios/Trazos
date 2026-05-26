@@ -27,6 +27,7 @@ export const TAG = {
   RESUMEN_FINANCIERO: "resumen-financiero",
   HITOS: "hitos",
   PERFIL: "perfil",
+  FAMILIAS: "familias",
 } as const;
 
 export type TagName = (typeof TAG)[keyof typeof TAG];

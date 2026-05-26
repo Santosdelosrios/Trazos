@@ -35,6 +35,8 @@ export default async function AlumnoPerfilPage({
     { data: alumno, error: alumnoError },
     { data: historial },
     plan,
+    { data: tarifaGlobalRaw },
+    { data: familiasList },
   ] = await Promise.all([
     // 1. Fetch Alumno
     supabase
@@ -70,7 +72,26 @@ export default async function AlumnoPerfilPage({
 
     // 3. Get plan
     getPlan(supabase, user.id),
+
+    // 4. Tarifa global vigente
+    supabase
+      .from("tarifas")
+      .select("valor_hora")
+      .eq("maestra_id", user.id)
+      .eq("activa", true)
+      .order("vigente_desde", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // 5. Familias disponibles
+    supabase
+      .from("familias_activas")
+      .select("id, nombre, responsable_nombre")
+      .eq("maestra_id", user.id)
+      .order("nombre"),
   ]);
+
+  const tarifaGlobal = (tarifaGlobalRaw as { valor_hora: number } | null)?.valor_hora ?? null;
 
   if (alumnoError || !alumno) {
     redirect("/alumnos");
@@ -178,7 +199,12 @@ export default async function AlumnoPerfilPage({
                 notas: alumno.notas,
                 modelo_cobro: alumno.modelo_cobro || "por_clase",
                 tarifa_override: alumno.tarifa_override ?? null,
+                familia_id: alumno.familia_id ?? null,
+                responsable_nombre: alumno.responsable_nombre ?? null,
+                responsable_telefono: alumno.responsable_telefono ?? null,
               }}
+              tarifaGlobal={tarifaGlobal}
+              familias={(familiasList ?? []) as Array<{ id: string; nombre: string; responsable_nombre: string | null }>}
             />
             <Link
               href={`/clases/nueva?alumnoId=${alumno.id}`}

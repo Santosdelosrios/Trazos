@@ -8,6 +8,7 @@ import { useTransition } from "react";
 import { recordatorioPago, generarLinkWhatsApp } from "@/lib/finanzas/plantillasWhatsApp";
 import { CreditCard, MessageSquare, CheckCircle2, Check, Trash2 } from "lucide-react";
 import { formatFechaDiaMes } from "@/lib/utils/fechas";
+import EditarCobroModal from "./EditarCobroModal";
 
 interface PagoConAlumno extends Omit<Pago, "alumnos"> {
   alumnos?: { nombre: string; apellido: string };
@@ -134,6 +135,16 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                     <Check size={14} /> Cobrado
                   </span>
                 )}
+                <EditarCobroModal
+                  pago={{
+                    id: pago.id,
+                    monto: pago.monto,
+                    estado: pago.estado,
+                    fecha_pago: pago.fecha_pago,
+                    nota: pago.nota,
+                    periodo: pago.periodo,
+                  }}
+                />
                 <button
                   onClick={() => handleEliminar(pago.id)}
                   disabled={isPending}
@@ -235,6 +246,16 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                             Cobrado <Check size={14} />
                           </span>
                         )}
+                        <EditarCobroModal
+                          pago={{
+                            id: pago.id,
+                            monto: pago.monto,
+                            estado: pago.estado,
+                            fecha_pago: pago.fecha_pago,
+                            nota: pago.nota,
+                            periodo: pago.periodo,
+                          }}
+                        />
                         <button
                           onClick={() => handleEliminar(pago.id)}
                           disabled={isPending}

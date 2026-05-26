@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { updateAlumno } from "../actions";
-import { Pencil, X, Check } from "lucide-react";
+import { Pencil, X, Check, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
 import type { ModeloCobro } from "@/lib/types/database";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
+import { formatearMonto } from "@/lib/finanzas/formatearMonto";
+import NuevaFamiliaInline from "./NuevaFamiliaInline";
 
 interface Alumno {
   id: string;
@@ -16,15 +18,37 @@ interface Alumno {
   notas?: string | null;
   modelo_cobro: ModeloCobro;
   tarifa_override?: number | null;
+  familia_id?: string | null;
+  responsable_nombre?: string | null;
+  responsable_telefono?: string | null;
+}
+
+interface FamiliaOption {
+  id: string;
+  nombre: string;
+  responsable_nombre: string | null;
 }
 
 const MODELOS = Object.entries(MODELO_COBRO_CONFIG) as [ModeloCobro, typeof MODELO_COBRO_CONFIG[ModeloCobro]][];
 
-export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
+export default function EditarAlumnoModal({
+  alumno,
+  tarifaGlobal,
+  familias,
+}: {
+  alumno: Alumno;
+  tarifaGlobal: number | null;
+  familias: FamiliaOption[];
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedModelo, setSelectedModelo] = useState<ModeloCobro>(alumno.modelo_cobro);
+  const [tarifaMode, setTarifaMode] = useState<"global" | "custom">(
+    alumno.tarifa_override != null ? "custom" : "global"
+  );
+  const [familiaId, setFamiliaId] = useState<string>(alumno.familia_id ?? "");
+  const [familiasOpts, setFamiliasOpts] = useState<FamiliaOption[]>(familias);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -34,6 +58,11 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
 
     const formData = new FormData(e.currentTarget);
     formData.set("modelo_cobro", selectedModelo);
+    // Si está en modo global, blanqueamos el override
+    if (tarifaMode === "global") {
+      formData.set("tarifa_override", "");
+    }
+    formData.set("familia_id", familiaId);
     try {
       await updateAlumno(alumno.id, formData);
       setIsOpen(false);
@@ -158,24 +187,126 @@ export default function EditarAlumnoModal({ alumno }: { alumno: Alumno }) {
                 </div>
               </div>
 
-              {/* Tarifa individual */}
+              {/* Tarifa por alumno: toggle global / personalizada */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-1">
-                  Tarifa individual <span className="font-normal normal-case">(opcional, deja vacío para usar la global)</span>
+                <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-2">
+                  Tarifa por hora
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-400 font-bold">$</span>
-                  <input
-                    name="tarifa_override"
-                    type="number" inputMode="numeric" pattern="[0-9]*"
-                    step="0.01"
-                    min="0"
-                    defaultValue={alumno.tarifa_override ?? ""}
-                    placeholder="Ej: 5000"
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-8 pr-4 py-2 text-sm font-medium focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                  />
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setTarifaMode("global")}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                      tarifaMode === "global"
+                        ? "border-primary-400 bg-primary-50 ring-2 ring-primary-200 shadow-sm"
+                        : "border-surface-200 bg-white hover:border-surface-300"
+                    }`}
+                  >
+                    <p className={`text-xs font-bold ${tarifaMode === "global" ? "text-primary-700" : "text-surface-700"}`}>
+                      Usar tarifa global
+                    </p>
+                    <p className="text-[10px] text-surface-500 mt-0.5">
+                      {tarifaGlobal != null ? formatearMonto(tarifaGlobal) : "Sin definir"}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTarifaMode("custom")}
+                    className={`rounded-xl border p-3 text-left transition-all ${
+                      tarifaMode === "custom"
+                        ? "border-primary-400 bg-primary-50 ring-2 ring-primary-200 shadow-sm"
+                        : "border-surface-200 bg-white hover:border-surface-300"
+                    }`}
+                  >
+                    <p className={`text-xs font-bold ${tarifaMode === "custom" ? "text-primary-700" : "text-surface-700"}`}>
+                      Tarifa personalizada
+                    </p>
+                    <p className="text-[10px] text-surface-500 mt-0.5">
+                      Distinta a la global
+                    </p>
+                  </button>
                 </div>
+                {tarifaMode === "custom" && (
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-surface-400 font-bold">$</span>
+                    <input
+                      name="tarifa_override"
+                      type="number" inputMode="numeric" pattern="[0-9]*"
+                      step="0.01"
+                      min="0"
+                      required
+                      defaultValue={alumno.tarifa_override ?? ""}
+                      placeholder="Ej: 5000"
+                      className="w-full rounded-xl border border-surface-200 bg-surface-50 pl-8 pr-4 py-2 text-sm font-medium focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                  </div>
+                )}
               </div>
+
+              {/* Familia */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-2">
+                  <Users size={12} className="inline mr-1" />
+                  Familia <span className="font-normal normal-case">(opcional, para agrupar hermanos)</span>
+                </label>
+                <select
+                  value={familiaId}
+                  onChange={(e) => setFamiliaId(e.target.value)}
+                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm font-medium focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                >
+                  <option value="">Sin familia (alumno suelto)</option>
+                  {familiasOpts.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nombre}{f.responsable_nombre ? ` — ${f.responsable_nombre}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-surface-400 mt-1">
+                  Si pertenece a una familia, hereda responsable y datos de pago de ahí.
+                </p>
+                <NuevaFamiliaInline
+                  onCreated={(f) => {
+                    setFamiliasOpts((prev) => [...prev, f].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+                    setFamiliaId(f.id);
+                  }}
+                />
+              </div>
+
+              {/* Contacto del responsable: si pertenece a familia, preservamos
+                  los valores actuales con hidden inputs para no borrarlos. */}
+              {familiaId && (
+                <>
+                  <input type="hidden" name="responsable_nombre" defaultValue={alumno.responsable_nombre ?? ""} />
+                  <input type="hidden" name="responsable_telefono" defaultValue={alumno.responsable_telefono ?? ""} />
+                </>
+              )}
+              {!familiaId && (
+                <div className="rounded-xl border border-surface-200 bg-surface-50/40 p-4 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                    Contacto del responsable
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-surface-600 mb-1">Nombre</label>
+                    <input
+                      name="responsable_nombre"
+                      type="text"
+                      defaultValue={alumno.responsable_nombre ?? ""}
+                      placeholder="Ej: Mariana (mamá)"
+                      className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-surface-600 mb-1">Teléfono (WhatsApp)</label>
+                    <input
+                      name="responsable_telefono"
+                      type="tel"
+                      defaultValue={alumno.responsable_telefono ?? ""}
+                      placeholder="Ej: 11 2345 6789"
+                      className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-surface-500 mb-1">
