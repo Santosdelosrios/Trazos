@@ -327,9 +327,14 @@ export async function prepararPlanClase(
       model: "gemini-2.5-flash",
       generationConfig: {
         temperature: 0.6,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
         responseSchema: PlanClaseResponseSchema,
+        // Sin esto, el "thinking" de Gemini 2.5 consume el presupuesto de
+        // tokens antes de emitir el JSON (sobre todo leyendo un PDF grande),
+        // devolviendo respuesta vacía. Igual que el resto de las funciones.
+        // @ts-expect-error - thinkingConfig experimental
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
