@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Nunito, Geist_Mono } from "next/font/google";
+import { Nunito, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { GoogleAnalytics } from "@next/third-parties/google";
@@ -8,6 +8,14 @@ const nunito = Nunito({
   variable: "--font-nunito",
   subsets: ["latin"],
   display: "swap",
+});
+
+// Serif con carácter para títulos (landing y headings destacados).
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  style: ["normal", "italic"],
 });
 
 const geistMono = Geist_Mono({
@@ -141,7 +149,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es-AR" className={`${nunito.variable} ${geistMono.variable} h-full`}>
+    <html lang="es-AR" className={`${nunito.variable} ${fraunces.variable} ${geistMono.variable} h-full`}>
       <head>
         <script
           type="application/ld+json"
