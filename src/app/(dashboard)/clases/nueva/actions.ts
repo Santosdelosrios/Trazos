@@ -152,6 +152,34 @@ export async function registrarCobroClase(data: {
     const modelo = alumno?.modelo_cobro || "por_clase";
 
     if (modelo === "por_clase" || modelo === "abono_mensual") {
+      // Idempotencia: si ya hay un pago no soft-deleted para esta
+      // clase+alumno (típicamente un "pendiente" creado por
+      // aplicarModeloCobroCierre cuando el flag está activo), lo
+      // actualizamos a "pagado" en vez de insertar otro y generar
+      // doble cobro.
+      const { data: existente } = await supabase
+        .from("pagos")
+        .select("id")
+        .eq("clase_id", data.clase_id)
+        .eq("alumno_id", data.alumno_id)
+        .eq("maestra_id", user.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (existente) {
+        const { error } = await supabase
+          .from("pagos")
+          .update({
+            monto: data.monto,
+            estado: "pagado",
+            fecha_pago: new Date().toISOString().split("T")[0],
+          })
+          .eq("id", existente.id)
+          .is("deleted_at", null);
+        if (error) throw new Error("Error al actualizar cobro: " + error.message);
+        return;
+      }
+
       const { error } = await supabase.from("pagos").insert({
         maestra_id: user.id,
         alumno_id: data.alumno_id,

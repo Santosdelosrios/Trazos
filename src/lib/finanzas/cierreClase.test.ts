@@ -37,6 +37,7 @@ function makeSupabase(schema: Schema) {
         };
       },
       eq() { return fluent; },
+      is() { return fluent; },
       gte() { return fluent; },
       lte() { return fluent; },
       maybeSingle: async () => {
@@ -129,6 +130,22 @@ describe("aplicarModeloCobroCierre — flag on", () => {
       monto: 5000,
       clase_id: "clase-1",
     });
+  });
+
+  it("por_clase: idempotente — no duplica si ya hay pago para esa clase", async () => {
+    const s: Schema = {
+      inserts: {},
+      query: {
+        alumnos: () => ({ modelo_cobro: "por_clase" }),
+        maestras: () => ({ cobros_automaticos_clases: true }),
+        // El maybeSingle a "pagos" devuelve un pago existente.
+        pagos: () => ({ id: "pago-pre-existente" }),
+      },
+    };
+    const supa = makeSupabase(s);
+    const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+    expect(res.pago_id).toBe("pago-pre-existente");
+    expect(s.inserts.pagos).toBeUndefined(); // NO insertó otro
   });
 
   it("cuenta_corriente: registra movimiento con monto negativo, sin pagos", async () => {
