@@ -297,16 +297,22 @@ export default function NuevaClaseClient({
         
         {step === 4 && (() => {
           const alumnoSeleccionado = alumnos.find((a) => a.id === selectedAlumnoId);
+          const tarifaHora = alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? 0;
+          const duracionInicial = initialDuracion ?? 1;
+          // initialMonto = tarifa × duración (no solo la tarifa, que es por hora).
+          // Sin esto, clases de 2h se mostraban con el mismo monto que clases de 1h.
+          const montoInicial = tarifaHora > 0 ? tarifaHora * duracionInicial : undefined;
           return (
-            <PasoResumen 
-              isLoading={isGeneratingHito} 
-              hito={hitoData} 
+            <PasoResumen
+              isLoading={isGeneratingHito}
+              hito={hitoData}
               ejercicios={ejercicios}
               resultados={resultados}
               nota={notaCalculada}
               modeloCobro={alumnoSeleccionado?.modelo_cobro || "por_clase"}
-              initialMonto={alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? undefined}
-              initialDuracion={initialDuracion}
+              initialMonto={montoInicial}
+              initialDuracion={duracionInicial}
+              tarifaHora={tarifaHora || undefined}
               onRegistrarCobro={async (monto, duracion, estado) => {
                 if (claseIdGuardada && selectedAlumnoId) {
                   const { registrarCobroClase } = await import("./actions");

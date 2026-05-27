@@ -31,7 +31,9 @@ export default function PlanificarModal({
     tema_previsto: "",
     materia: "general" as Materia,
     duracion_estimada: 1,
-    tarifa_esperada: tarifaActual || 0,
+    // tarifa_esperada = tarifa × duración (es el monto total, no por hora).
+    // Coincide con el cálculo del onChange de duracion_estimada más abajo.
+    tarifa_esperada: (tarifaActual || 0) * 1,
     repetirSemanal: false,
     semanas: 4,
   });
@@ -45,7 +47,9 @@ export default function PlanificarModal({
       tema_previsto: "",
       materia: "otro" as Materia,
       duracion_estimada: 1,
-      tarifa_esperada: tarifaActual || 0,
+      // tarifa_esperada = tarifa × duración (es el monto total, no por hora).
+    // Coincide con el cálculo del onChange de duracion_estimada más abajo.
+    tarifa_esperada: (tarifaActual || 0) * 1,
       repetirSemanal: false,
       semanas: 4,
     });

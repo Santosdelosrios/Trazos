@@ -15,6 +15,10 @@ interface PasoResumenProps {
   modeloCobro?: ModeloCobro;
   initialMonto?: number;
   initialDuracion?: number;
+  /** Tarifa por hora del alumno (override) o de la maestra (global). Usada
+   *  para recalcular el monto automáticamente cuando la maestra cambia la
+   *  duración real de la clase, salvo que haya editado el monto a mano. */
+  tarifaHora?: number;
   onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => Promise<void>;
 }
 
@@ -27,11 +31,27 @@ export default function PasoResumen({
   modeloCobro = "por_clase",
   initialMonto,
   initialDuracion,
+  tarifaHora,
   onRegistrarCobro,
 }: PasoResumenProps) {
   const [monto, setMonto] = useState<string>(initialMonto?.toString() || "");
   const [duracionReal, setDuracionReal] = useState<number>(initialDuracion || 1);
+  // Si la maestra editó el monto manualmente, no lo recalculamos al
+  // cambiar la duración. Se respeta su decisión.
+  const [montoEditadoManualmente, setMontoEditadoManualmente] = useState(false);
   const [cobroStatus, setCobroStatus] = useState<"none" | "saving" | "saved">("none");
+
+  function handleDuracionChange(nuevaDuracion: number) {
+    setDuracionReal(nuevaDuracion);
+    if (!montoEditadoManualmente && tarifaHora && tarifaHora > 0) {
+      setMonto(String(Math.round(tarifaHora * nuevaDuracion)));
+    }
+  }
+
+  function handleMontoChange(nuevoMonto: string) {
+    setMonto(nuevoMonto);
+    setMontoEditadoManualmente(true);
+  }
 
   const config = MODELO_COBRO_CONFIG[modeloCobro];
 
@@ -174,7 +194,7 @@ export default function PasoResumen({
                     min="0.5"
                     step="0.5"
                     value={duracionReal}
-                    onChange={(e) => setDuracionReal(Number(e.target.value))}
+                    onChange={(e) => handleDuracionChange(Number(e.target.value))}
                     className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                   />
                 </div>
@@ -187,8 +207,8 @@ export default function PasoResumen({
                     min="0"
                     step="100"
                     value={monto}
-                    onChange={(e) => setMonto(e.target.value)}
-                    placeholder="Ej: 5000"
+                    onChange={(e) => handleMontoChange(e.target.value)}
+                    placeholder={tarifaHora ? `${Math.round(tarifaHora * duracionReal)}` : "Monto"}
                     className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                   />
                 </div>
