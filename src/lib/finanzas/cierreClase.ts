@@ -124,6 +124,34 @@ async function crearPagoPendiente(
   input: CierreClaseInput,
   origen: "auto_clase" | "abono_excedente"
 ): Promise<CierreClaseResultado> {
+  // Idempotencia por (clase_id, alumno_id): si ya hay un pago no
+  // soft-deleted para esta clase y alumno, NO creamos otro. Esto
+  // previene el doble cobro que aparecía cuando dos paths del cierre
+  // generaban pago para la misma clase (ej: la maestra cierra desde
+  // la agenda y después marca pendiente desde el wizard de evaluación,
+  // o un doble click en el botón).
+  //
+  // Para excedente_abono mantenemos el guard porque conceptualmente
+  // una clase = un cobro: si el helper ya creó el cobro pendiente
+  // del abono mensual, no debería duplicarlo aunque se vuelva a llamar.
+  const { data: existente } = await supabase
+    .from("pagos")
+    .select("id")
+    .eq("clase_id", input.clase_id)
+    .eq("alumno_id", input.alumno_id)
+    .eq("maestra_id", maestraId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (existente) {
+    return {
+      pago_id: existente.id,
+      excedente_abono: origen === "abono_excedente",
+      flag_apagado: false,
+      modelo: origen === "abono_excedente" ? "abono_mensual" : "por_clase",
+    };
+  }
+
   const { data, error } = await supabase
     .from("pagos")
     .insert({
