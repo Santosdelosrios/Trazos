@@ -31,7 +31,7 @@ export default async function HistoricoPage() {
       <div>
         <Link
           href="/finanzas"
-          className="mb-3 inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:underline"
+          className="mb-3 flex w-fit items-center gap-1 text-xs font-bold text-primary-600 hover:underline"
         >
           <ArrowLeft size={14} /> Volver a Finanzas
         </Link>
