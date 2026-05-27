@@ -180,6 +180,25 @@ export type CategoriaGasto =
 
 export type EstadoPago = "pendiente" | "pagado" | "parcial" | "cancelado";
 
+export type MedioPago = "efectivo" | "transferencia" | "mercadopago" | "otro";
+
+export type PagoOrigen = "manual" | "auto_clase" | "abono_excedente";
+
+export const MEDIO_PAGO_LABELS: Record<MedioPago, string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  mercadopago: "Mercado Pago",
+  otro: "Otro",
+};
+
+export interface ImputacionPago {
+  id: string;
+  pago_id: string;
+  clase_id: string;
+  monto_imputado: number;
+  created_at: string;
+}
+
 export interface Tarifa {
   id: string;
   maestra_id: string;
@@ -211,6 +230,11 @@ export interface Pago {
   fecha_pago?: string | null;
   nota?: string | null;
   periodo?: string | null;
+  medio_pago?: MedioPago | null;
+  comprobante_url?: string | null;
+  origen?: PagoOrigen;
+  deleted_at?: string | null;
+  updated_at?: string;
   created_at: string;
   // Join fields
   alumnos?: Alumno;

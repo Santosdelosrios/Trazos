@@ -69,18 +69,24 @@ export default async function CuentasPage() {
       .select("alumno_id, clases!inner(fecha, maestra_id)")
       .eq("clases.maestra_id", user.id),
 
-    // Último pago por alumno
+    // Último pago por alumno (vista filtra soft-deleted)
     supabase
-      .from("pagos")
+      .from("pagos_activos")
       .select("alumno_id, fecha_pago, estado")
       .eq("maestra_id", user.id)
       .in("estado", ["pagado", "parcial"]),
 
-    supabase.from("maestras").select("nombre").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("maestras")
+      .select("nombre, datos_pago, template_recordatorio")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
 
   const tarifaGlobal = tarifaData?.[0]?.valor_hora ?? 0;
   const nombreMaestra = maestraData?.nombre ?? "Profe";
+  const datosPago = maestraData?.datos_pago ?? null;
+  const templateRecordatorio = maestraData?.template_recordatorio ?? null;
 
   // Reducir a un mapa { alumno_id → fecha más reciente }
   const ultimaClasePorAlumno = new Map<string, string>();
@@ -158,6 +164,8 @@ export default async function CuentasPage() {
         alumnos={alumnos}
         familias={familias}
         nombreMaestra={nombreMaestra}
+        templateRecordatorio={templateRecordatorio}
+        datosPago={datosPago}
       />
     </div>
   );

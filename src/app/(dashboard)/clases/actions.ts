@@ -38,12 +38,13 @@ export async function eliminarClase(claseAlumnoId: string) {
     return { error: errorCA.message };
   }
 
-  // 4. Borrar el pago asociado (si existe para esa clase específica)
+  // 4. Soft delete del pago asociado (si existe para esa clase específica)
   const { error: errorPago } = await supabase
     .from("pagos")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("clase_id", registro.clase_id)
-    .eq("alumno_id", registro.alumno_id);
+    .eq("alumno_id", registro.alumno_id)
+    .is("deleted_at", null);
   if (errorPago) console.error("Error borrando pago:", errorPago);
 
   // 5. Opcional: Podríamos borrar la clase si no tiene más alumnos vinculados
@@ -78,12 +79,13 @@ export async function actualizarPagoClase(data: {
   const isPaidState = data.estado === "pagado" || data.estado === "parcial";
   const fechaPago = isPaidState ? new Date().toISOString().split("T")[0] : null;
 
-  // Check if payment exists
+  // Check if payment exists (ignora soft-deleted)
   const { data: existingPago } = await supabase
     .from("pagos")
     .select("id")
     .eq("clase_id", data.clase_id)
     .eq("alumno_id", data.alumno_id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (existingPago) {
@@ -95,7 +97,8 @@ export async function actualizarPagoClase(data: {
         estado: data.estado,
         fecha_pago: fechaPago,
       })
-      .eq("id", existingPago.id);
+      .eq("id", existingPago.id)
+      .is("deleted_at", null);
 
     if (error) throw new Error(error.message);
   } else {

@@ -38,9 +38,9 @@ export default async function FinanzasPage() {
     // Resumen del mes via RPC
     supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
 
-    // Últimos 5 pagos
+    // Últimos 5 pagos (vista filtra soft-deleted)
     supabase
-      .from("pagos")
+      .from("pagos_activos")
       .select("id, monto, estado, fecha_pago, created_at, alumnos(nombre, apellido)")
       .eq("maestra_id", user.id)
       .order("created_at", { ascending: false })
@@ -55,9 +55,9 @@ export default async function FinanzasPage() {
       .order("vigente_desde", { ascending: false })
       .limit(1),
 
-    // Gastos del mes
+    // Gastos del mes (vista filtra soft-deleted)
     supabase
-      .from("gastos")
+      .from("gastos_activos")
       .select("id, categoria, descripcion, monto, fecha")
       .eq("maestra_id", user.id)
       .gte("fecha", startOfMonth.toISOString().split("T")[0])

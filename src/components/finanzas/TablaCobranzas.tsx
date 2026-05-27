@@ -1,36 +1,58 @@
 "use client";
 
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
-import type { Pago, EstadoPago } from "@/lib/types/database";
+import type { Pago } from "@/lib/types/database";
 import { ESTADO_PAGO_CONFIG } from "@/lib/types/database";
-import { actualizarEstadoPago } from "@/app/(dashboard)/finanzas/actions";
 import { useTransition } from "react";
 import { recordatorioPago, generarLinkWhatsApp } from "@/lib/finanzas/plantillasWhatsApp";
-import { CreditCard, MessageSquare, CheckCircle2, Check, Trash2 } from "lucide-react";
+import { obtenerResponsableContacto } from "@/lib/finanzas/responsable";
+import { CreditCard, MessageSquare, Check, Trash2 } from "lucide-react";
 import { formatFechaDiaMes } from "@/lib/utils/fechas";
 import EditarCobroModal from "./EditarCobroModal";
+import ConfirmarPagoModal from "./ConfirmarPagoModal";
+
+interface AlumnoEmbed {
+  nombre: string;
+  apellido: string;
+  responsable_nombre?: string | null;
+  responsable_telefono?: string | null;
+  familia?: {
+    responsable_nombre?: string | null;
+    responsable_telefono?: string | null;
+  } | { responsable_nombre?: string | null; responsable_telefono?: string | null }[] | null;
+}
 
 interface PagoConAlumno extends Omit<Pago, "alumnos"> {
-  alumnos?: { nombre: string; apellido: string };
+  alumnos?: AlumnoEmbed;
 }
 
 interface Props {
   pagos: PagoConAlumno[];
   nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
 }
 
-export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
-  const [isPending, startTransition] = useTransition();
+function contactoDePago(pago: PagoConAlumno) {
+  const a = pago.alumnos;
+  if (!a) return { nombre: null, telefono: null, origen: null };
+  const fam = Array.isArray(a.familia) ? a.familia[0] : a.familia;
+  return obtenerResponsableContacto({
+    responsable_nombre: a.responsable_nombre ?? null,
+    responsable_telefono: a.responsable_telefono ?? null,
+    familia: fam
+      ? {
+          responsable_nombre: fam.responsable_nombre ?? null,
+          responsable_telefono: fam.responsable_telefono ?? null,
+        }
+      : null,
+  });
+}
 
-  function handleCambiarEstado(id: string, nuevoEstado: EstadoPago) {
-    startTransition(async () => {
-      try {
-        await actualizarEstadoPago(id, nuevoEstado);
-      } catch (err) {
-        console.error("Error al actualizar pago:", err);
-      }
-    });
-  }
+export default function TablaCobranzas({
+  pagos, nombreMaestra, templateRecordatorio, datosPago,
+}: Props) {
+  const [isPending, startTransition] = useTransition();
 
   function handleEliminar(id: string) {
     if (window.confirm("¿Estás segura de que querés eliminar este registro?")) {
@@ -101,33 +123,42 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-surface-100">
                 {pago.estado === "pendiente" && (
                   <>
-                    <button
-                      onClick={() => handleCambiarEstado(pago.id, "pagado")}
-                      disabled={isPending}
+                    <ConfirmarPagoModal
+                      pago={{
+                        id: pago.id,
+                        alumno_id: pago.alumno_id,
+                        monto: pago.monto,
+                        estado: pago.estado,
+                      }}
                       className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-success-500 px-3 py-3 min-h-11 text-xs font-bold text-white shadow-sm hover:bg-success-400 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <CheckCircle2 size={14} /> Marcar Pagado
-                    </button>
-                    <a
-                      href={generarLinkWhatsApp(
-                        "",
-                        recordatorioPago({
-                          nombreMaestra,
-                          alumno: {
-                            nombre: pago.alumnos?.nombre ?? "Alumno",
-                            apellido: pago.alumnos?.apellido ?? "",
-                          },
-                          monto: pago.monto,
-                        })
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-100 text-surface-600 hover:bg-surface-200 transition-colors"
-                      title="Enviar recordatorio"
-                      aria-label="Enviar recordatorio por WhatsApp"
-                    >
-                      <MessageSquare size={18} />
-                    </a>
+                    />
+                    {(() => {
+                      const contacto = contactoDePago(pago);
+                      return (
+                        <a
+                          href={generarLinkWhatsApp(
+                            contacto.telefono ?? "",
+                            recordatorioPago({
+                              nombreMaestra,
+                              alumno: {
+                                nombre: pago.alumnos?.nombre ?? "Alumno",
+                                apellido: pago.alumnos?.apellido ?? "",
+                              },
+                              monto: pago.monto,
+                              template: templateRecordatorio,
+                              datos_pago: datosPago,
+                            })
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-100 text-surface-600 hover:bg-surface-200 transition-colors"
+                          title="Enviar recordatorio"
+                          aria-label="Enviar recordatorio por WhatsApp"
+                        >
+                          <MessageSquare size={18} />
+                        </a>
+                      );
+                    })()}
                   </>
                 )}
                 {pago.estado === "pagado" && (
@@ -213,32 +244,42 @@ export default function TablaCobranzas({ pagos, nombreMaestra }: Props) {
                       <div className="flex items-center justify-end gap-2">
                         {pago.estado === "pendiente" && (
                           <>
-                            <a
-                              href={generarLinkWhatsApp(
-                                "",
-                                recordatorioPago({
-                                  nombreMaestra,
-                                  alumno: {
-                                    nombre: pago.alumnos?.nombre ?? "Alumno",
-                                    apellido: pago.alumnos?.apellido ?? "",
-                                  },
-                                  monto: pago.monto,
-                                })
-                              )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="rounded-lg bg-surface-100 p-2 text-surface-600 hover:bg-surface-200 transition-colors"
-                              title="Enviar recordatorio por WhatsApp"
-                            >
-                              <MessageSquare size={16} />
-                            </a>
-                            <button
-                              onClick={() => handleCambiarEstado(pago.id, "pagado")}
-                              disabled={isPending}
+                            {(() => {
+                              const contacto = contactoDePago(pago);
+                              return (
+                                <a
+                                  href={generarLinkWhatsApp(
+                                    contacto.telefono ?? "",
+                                    recordatorioPago({
+                                      nombreMaestra,
+                                      alumno: {
+                                        nombre: pago.alumnos?.nombre ?? "Alumno",
+                                        apellido: pago.alumnos?.apellido ?? "",
+                                      },
+                                      monto: pago.monto,
+                                      template: templateRecordatorio,
+                                      datos_pago: datosPago,
+                                    })
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-lg bg-surface-100 p-2 text-surface-600 hover:bg-surface-200 transition-colors"
+                                  title="Enviar recordatorio por WhatsApp"
+                                >
+                                  <MessageSquare size={16} />
+                                </a>
+                              );
+                            })()}
+                            <ConfirmarPagoModal
+                              pago={{
+                                id: pago.id,
+                                alumno_id: pago.alumno_id,
+                                monto: pago.monto,
+                                estado: pago.estado,
+                              }}
                               className="flex items-center gap-1.5 rounded-lg bg-success-500 px-3 py-1.5 text-[10px] font-bold text-white shadow-sm hover:bg-success-400 transition-all active:scale-95 disabled:opacity-50"
-                            >
-                              <CheckCircle2 size={12} /> Marcar Pagado
-                            </button>
+                              trigger={<>Marcar Pagado</>}
+                            />
                           </>
                         )}
                         {pago.estado === "pagado" && (

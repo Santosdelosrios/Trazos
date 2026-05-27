@@ -29,7 +29,7 @@ function makeSupabase(schema: Schema) {
         if (!schema.inserts[table]) schema.inserts[table] = [];
         schema.inserts[table].push(payload);
         return {
-          select(_c?: string) {
+          select() {
             return {
               single: async () => ({ data: { id: "pago-" + schema.inserts[table].length }, error: null }),
             };

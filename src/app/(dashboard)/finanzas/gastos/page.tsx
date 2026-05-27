@@ -22,7 +22,7 @@ export default async function GastosPage() {
   if (!user) redirect("/login");
 
   const { data: gastos } = await supabase
-    .from("gastos")
+    .from("gastos_activos")
     .select("*")
     .eq("maestra_id", user.id)
     .order("fecha", { ascending: false });

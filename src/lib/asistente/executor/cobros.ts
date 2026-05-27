@@ -31,13 +31,14 @@ export async function registrarPago(
   const montoArg = args.monto as number | undefined;
   const estado = (args.estado as string) ?? "pagado";
 
-  // 1. Buscar pago pendiente existente para este alumno
+  // 1. Buscar pago pendiente existente para este alumno (ignora soft-deleted)
   const { data: pagoExistente } = await supabase
     .from("pagos")
     .select("id, monto")
     .eq("alumno_id", alumnoId)
     .eq("maestra_id", maestraId)
     .eq("estado", "pendiente")
+    .is("deleted_at", null)
     .limit(1)
     .maybeSingle();
 
@@ -45,7 +46,8 @@ export async function registrarPago(
     const { error } = await supabase
       .from("pagos")
       .update({ estado, fecha_pago: fecha })
-      .eq("id", pagoExistente.id);
+      .eq("id", pagoExistente.id)
+      .is("deleted_at", null);
 
     if (error) {
       return { success: false, data: { error: error.message }, summary: "Error actualizando pago" };
@@ -198,7 +200,7 @@ export async function organizarCobroMes(
     .order("fecha", { ascending: true });
 
   const { data: pagosPendientes } = await supabase
-    .from("pagos")
+    .from("pagos_activos")
     .select("id, monto, estado, created_at, clase_id")
     .eq("maestra_id", maestraId)
     .eq("alumno_id", alumnoId)

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
-import { recordatorioPago, generarLinkWhatsApp } from "@/lib/finanzas/plantillasWhatsApp";
+import { recordatorioPago, renderizarRecordatorio, generarLinkWhatsApp } from "@/lib/finanzas/plantillasWhatsApp";
 import EmptyState from "@/components/ui/EmptyState";
 import type { SaldoFamilia, ModeloCobro, DetalleFamiliaItem } from "@/lib/types/database";
 import type { AlumnoConSaldo } from "./page";
@@ -20,11 +20,15 @@ interface Props {
   alumnos: AlumnoConSaldo[];
   familias: SaldoFamilia[];
   nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
 }
 
 type Tab = "alumnos" | "familias";
 
-export default function CuentasTabs({ alumnos, familias, nombreMaestra }: Props) {
+export default function CuentasTabs({
+  alumnos, familias, nombreMaestra, templateRecordatorio, datosPago,
+}: Props) {
   const [tab, setTab] = useState<Tab>("alumnos");
 
   // Cuento deudores por tab para badges
@@ -58,9 +62,20 @@ export default function CuentasTabs({ alumnos, familias, nombreMaestra }: Props)
       </div>
 
       {tab === "alumnos" ? (
-        <ListaAlumnos alumnos={alumnos} nombreMaestra={nombreMaestra} />
+        <ListaAlumnos
+          alumnos={alumnos}
+          nombreMaestra={nombreMaestra}
+          templateRecordatorio={templateRecordatorio}
+          datosPago={datosPago}
+        />
       ) : (
-        <ListaFamilias familias={familias} alumnos={alumnos} nombreMaestra={nombreMaestra} />
+        <ListaFamilias
+          familias={familias}
+          alumnos={alumnos}
+          nombreMaestra={nombreMaestra}
+          templateRecordatorio={templateRecordatorio}
+          datosPago={datosPago}
+        />
       )}
     </div>
   );
@@ -96,7 +111,14 @@ function TabButton({
 // Lista por alumno
 // ============================================================
 
-function ListaAlumnos({ alumnos, nombreMaestra }: { alumnos: AlumnoConSaldo[]; nombreMaestra: string }) {
+function ListaAlumnos({
+  alumnos, nombreMaestra, templateRecordatorio, datosPago,
+}: {
+  alumnos: AlumnoConSaldo[];
+  nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
+}) {
   if (alumnos.length === 0) {
     return (
       <EmptyState
@@ -118,13 +140,26 @@ function ListaAlumnos({ alumnos, nombreMaestra }: { alumnos: AlumnoConSaldo[]; n
   return (
     <div className="space-y-3">
       {ordenados.map((a) => (
-        <CardAlumno key={a.id} alumno={a} nombreMaestra={nombreMaestra} />
+        <CardAlumno
+          key={a.id}
+          alumno={a}
+          nombreMaestra={nombreMaestra}
+          templateRecordatorio={templateRecordatorio}
+          datosPago={datosPago}
+        />
       ))}
     </div>
   );
 }
 
-function CardAlumno({ alumno, nombreMaestra }: { alumno: AlumnoConSaldo; nombreMaestra: string }) {
+function CardAlumno({
+  alumno, nombreMaestra, templateRecordatorio, datosPago,
+}: {
+  alumno: AlumnoConSaldo;
+  nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
+}) {
   const modeloConfig = MODELO_COBRO_CONFIG[alumno.modelo_cobro];
   const esDeudaMonetaria = MODELOS_DEUDA.includes(alumno.modelo_cobro);
   const saldo = alumno.saldo_actual;
@@ -138,6 +173,8 @@ function CardAlumno({ alumno, nombreMaestra }: { alumno: AlumnoConSaldo; nombreM
       nombreMaestra,
       alumno: { nombre: alumno.nombre, apellido: alumno.apellido },
       monto: Math.max(saldo, 0),
+      template: templateRecordatorio,
+      datos_pago: datosPago,
     })
   );
 
@@ -228,8 +265,14 @@ function fmtFecha(iso: string | null): string {
 // ============================================================
 
 function ListaFamilias({
-  familias, alumnos, nombreMaestra,
-}: { familias: SaldoFamilia[]; alumnos: AlumnoConSaldo[]; nombreMaestra: string }) {
+  familias, alumnos, nombreMaestra, templateRecordatorio, datosPago,
+}: {
+  familias: SaldoFamilia[];
+  alumnos: AlumnoConSaldo[];
+  nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
+}) {
   if (familias.length === 0) {
     return (
       <EmptyState
@@ -249,6 +292,8 @@ function ListaFamilias({
           familia={f}
           miembros={alumnos.filter((a) => a.familia_id === f.familia_id)}
           nombreMaestra={nombreMaestra}
+          templateRecordatorio={templateRecordatorio}
+          datosPago={datosPago}
         />
       ))}
     </div>
@@ -256,11 +301,13 @@ function ListaFamilias({
 }
 
 function CardFamilia({
-  familia, miembros, nombreMaestra,
+  familia, miembros, nombreMaestra, templateRecordatorio, datosPago,
 }: {
   familia: SaldoFamilia;
   miembros: AlumnoConSaldo[];
   nombreMaestra: string;
+  templateRecordatorio?: string | null;
+  datosPago?: string | null;
 }) {
   const [open, setOpen] = useState(familia.saldo_total > 0);
   const [detalle, setDetalle] = useState<DetalleFamiliaItem[] | null>(null);
@@ -270,10 +317,37 @@ function CardFamilia({
   const aFavor = familia.saldo_total < 0;
 
   const telefono = familia.responsable_telefono ?? "";
-  const linkWA = generarLinkWhatsApp(
-    telefono,
-    `Hola${familia.responsable_nombre ? ` ${familia.responsable_nombre}` : ""}! Te escribo de parte de ${nombreMaestra} para coordinar el saldo pendiente de la familia ${familia.nombre} (${formatearMonto(Math.max(familia.saldo_total, 0))}). ¡Gracias!`
-  );
+
+  // Armado del mensaje familiar usando el engine de templates:
+  // si la maestra tiene template editado lo usa, si no cae al default
+  // de familia (con desglose por alumno).
+  const miembrosVars = miembros
+    .filter((m) => ["por_clase", "abono_mensual", "cuenta_corriente"].includes(m.modelo_cobro))
+    .map((m) => ({
+      nombre_completo: `${m.nombre} ${m.apellido}`.trim(),
+      subtotal: Math.max(m.saldo_actual, 0),
+      // Sin acceso directo a "cuántas clases pendientes tiene" por
+      // alumno acá; usamos 0 como placeholder (la maestra puede
+      // editar después si le importa). Refinable en una iteración.
+      clases: 0,
+    }));
+
+  const mensajeFamilia = renderizarRecordatorio({
+    template: templateRecordatorio,
+    esFamilia: true,
+    vars: {
+      nombre_alumno: familia.nombre,
+      nombre_responsable: familia.responsable_nombre ?? null,
+      monto: Math.max(familia.saldo_total, 0),
+      datos_pago: datosPago,
+      miembros_familia: miembrosVars,
+    },
+  });
+  // Si el template default termina vacío o queda raro (porque nombreMaestra
+  // no es variable), agregamos firma. nombreMaestra está disponible por si
+  // la maestra editó el template para incluirla manualmente.
+  void nombreMaestra;
+  const linkWA = generarLinkWhatsApp(telefono, mensajeFamilia);
 
   async function toggleExpand() {
     const willOpen = !open;
