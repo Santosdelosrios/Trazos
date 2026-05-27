@@ -6,9 +6,22 @@ import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
 import DeudoresCard from "@/components/finanzas/DeudoresCard";
 import BannerCobrosAutomaticos from "@/components/finanzas/BannerCobrosAutomaticos";
 import GastosPorCategoriaCard from "@/components/finanzas/GastosPorCategoriaCard";
-import type { ResumenFinancieroMes, EstadoPago, ModeloCobro, GastoPorCategoriaMes } from "@/lib/types/database";
+import ProyeccionMesCard from "@/components/finanzas/ProyeccionMesCard";
+import PanelAlertas from "@/components/finanzas/PanelAlertas";
+import BotonCerrarMes from "@/components/finanzas/BotonCerrarMes";
+import BriefingTizaCard from "@/components/finanzas/BriefingTizaCard";
+import { getPlan } from "@/lib/plan";
+import type {
+  ResumenFinancieroMes, EstadoPago, ModeloCobro,
+  GastoPorCategoriaMes, ProyeccionMes, AlertaFinanza,
+} from "@/lib/types/database";
+
+const MESES_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
 import { ESTADO_PAGO_CONFIG } from "@/lib/types/database";
-import { Wallet, CreditCard, Package, Calculator, ChevronRight, Users } from "lucide-react";
+import { Wallet, CreditCard, Package, Calculator, ChevronRight, Users, History } from "lucide-react";
 
 const MODELOS_DEUDA_MONETARIA: ModeloCobro[] = ["por_clase", "abono_mensual", "cuenta_corriente"];
 
@@ -31,6 +44,8 @@ export default async function FinanzasPage() {
     { data: deudoresFamiliasRaw },
     { data: maestraFlags },
     { data: gastosCategoriaRaw },
+    { data: proyeccionRaw },
+    { data: alertasRaw },
   ] = await Promise.all([
     // Resumen del mes via RPC
     supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
@@ -73,7 +88,20 @@ export default async function FinanzasPage() {
     // Gastos por categoría del mes (PR-6) — no le paso anio/mes para
     // que use el default (CURRENT_DATE).
     supabase.rpc("gastos_por_categoria_mes", { p_maestra_id: user.id }),
+
+    // Proyección del mes actual (PR-7).
+    supabase.rpc("proyeccion_mes", { p_maestra_id: user.id }),
+
+    // Alertas inteligentes (PR-7).
+    supabase.rpc("alertas_finanzas", { p_maestra_id: user.id }),
   ]);
+
+  // Plan para gateo del briefing Tiza (PR-10)
+  const plan = await getPlan(supabase, user.id);
+
+  const proyeccion = (proyeccionRaw?.[0] ?? null) as ProyeccionMes | null;
+  const alertas = (alertasRaw ?? []) as AlertaFinanza[];
+  const mesNombre = MESES_ES[new Date().getMonth()];
 
   const mostrarBannerCobrosAuto = maestraFlags?.cobros_automaticos_clases === false;
 
@@ -117,32 +145,45 @@ export default async function FinanzasPage() {
     { href: "/finanzas/cuentas", label: "Cuentas", icon: <Users size={24} />, desc: "Saldos por alumno y familia" },
     { href: "/finanzas/cobranzas", label: "Cobranzas", icon: <CreditCard size={24} />, desc: "Registrar y controlar pagos" },
     { href: "/finanzas/gastos", label: "Gastos", icon: <Package size={24} />, desc: "Viáticos, materiales y más" },
+    { href: "/finanzas/historico", label: "Histórico", icon: <History size={24} />, desc: "12 meses de ingresos y gastos" },
     { href: "/finanzas/tarifas", label: "Tarifas", icon: <Calculator size={24} />, desc: "Calculá tu valor hora" },
   ];
 
   return (
     <div className="animate-fade-in-up space-y-8 pb-12">
       {/* Header */}
-      <div>
-        <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
-          Finanzas <Wallet size={24} className="text-primary-600" />
-        </h1>
-        <p className="mt-3 text-sm text-surface-500 font-medium">
-          Gestioná tus ingresos, gastos y cobranzas en un solo lugar.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
+            Finanzas <Wallet size={24} className="text-primary-600" />
+          </h1>
+          <p className="mt-3 text-sm text-surface-500 font-medium">
+            Gestioná tus ingresos, gastos y cobranzas en un solo lugar.
+          </p>
+        </div>
+        <BotonCerrarMes />
       </div>
 
       {/* Banner: invitación a activar cobros automáticos (solo si está apagado) */}
       {mostrarBannerCobrosAuto && <BannerCobrosAutomaticos />}
 
+      {/* Briefing Tiza (Premium con preview en Free) — PR-10 */}
+      <BriefingTizaCard esPremium={plan === "premium"} />
+
       {/* Card destacada: deudores */}
       <DeudoresCard total={totalAdeudado} top={topDeudores} />
+
+      {/* Panel de alertas (PR-7) */}
+      <PanelAlertas alertas={alertas} />
+
+      {/* Proyección del mes (PR-7) */}
+      {proyeccion && <ProyeccionMesCard proyeccion={proyeccion} mesNombre={mesNombre} />}
 
       {/* Resumen widget */}
       <ResumenFinanciero resumen={resumen} />
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {subpages.map((page) => (
           <Link
             key={page.href}

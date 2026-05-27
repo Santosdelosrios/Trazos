@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { getPlan } from "@/lib/plan";
 import type { CategoriaGasto, EstadoPago, MedioPago } from "@/lib/types/database";
 import {
   GuardarTarifaSchema,
@@ -518,5 +519,50 @@ export async function confirmarPago(input: {
   revalidatePath("/finanzas");
   revalidatePath("/finanzas/cobranzas");
   revalidatePath("/dashboard");
+}
+
+// ============================================================
+// PR-8: aplicar la tarifa sugerida por inflación
+// ============================================================
+
+/**
+ * Crea una tarifa nueva con el valor sugerido y desactiva la anterior.
+ * Gated a Premium: el cálculo lo ven todas las maestras, pero aplicar
+ * con un click es feature paga.
+ */
+export async function aplicarTarifaSugerida(valorNuevo: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  const plan = await getPlan(supabase, user.id);
+  if (plan !== "premium") {
+    throw new Error("Aplicar la sugerencia con un click es una función Premium.");
+  }
+
+  if (valorNuevo <= 0 || valorNuevo > 10_000_000) {
+    throw new Error("El valor sugerido está fuera de rango.");
+  }
+
+  // Desactivar la activa anterior
+  await supabase
+    .from("tarifas")
+    .update({ activa: false })
+    .eq("maestra_id", user.id)
+    .eq("activa", true);
+
+  // Insertar la nueva activa
+  const { error } = await supabase.from("tarifas").insert({
+    maestra_id: user.id,
+    valor_hora: valorNuevo,
+    vigente_desde: new Date().toISOString().split("T")[0],
+    activa: true,
+    notas: "Aplicada desde sugerencia por inflación",
+  });
+  if (error) throw new Error("No se pudo aplicar la nueva tarifa: " + error.message);
+
+  revalidateTag(TAG.TARIFAS, "max");
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/tarifas");
 }
 
