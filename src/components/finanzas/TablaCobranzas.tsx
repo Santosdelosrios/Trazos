@@ -10,6 +10,7 @@ import { CreditCard, MessageSquare, Check, Trash2 } from "lucide-react";
 import { formatFechaDiaMes } from "@/lib/utils/fechas";
 import EditarCobroModal from "./EditarCobroModal";
 import ConfirmarPagoModal from "./ConfirmarPagoModal";
+import ComprobanteAcciones from "./ComprobanteAcciones";
 
 interface AlumnoEmbed {
   nombre: string;
@@ -161,10 +162,17 @@ export default function TablaCobranzas({
                     })()}
                   </>
                 )}
-                {pago.estado === "pagado" && (
-                  <span className="flex items-center gap-1 text-xs text-surface-400 italic flex-1">
-                    <Check size={14} /> Cobrado
-                  </span>
+                {(pago.estado === "pagado" || pago.estado === "parcial") && (
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs text-surface-400 italic">
+                      <Check size={14} /> {pago.estado === "pagado" ? "Cobrado" : "Parcial"}
+                    </span>
+                    <ComprobanteAcciones
+                      pagoId={pago.id}
+                      telefono={contactoDePago(pago).telefono}
+                      mensajeBase={`Te paso el comprobante del cobro de ${formatearMonto(pago.monto)} de ${pago.alumnos?.nombre ?? "tu hijo/a"}.`}
+                    />
+                  </div>
                 )}
                 <EditarCobroModal
                   pago={{
@@ -282,10 +290,17 @@ export default function TablaCobranzas({
                             />
                           </>
                         )}
-                        {pago.estado === "pagado" && (
-                          <span className="flex items-center gap-1 text-xs text-surface-400 italic">
-                            Cobrado <Check size={14} />
-                          </span>
+                        {(pago.estado === "pagado" || pago.estado === "parcial") && (
+                          <>
+                            <span className="flex items-center gap-1 text-xs text-surface-400 italic">
+                              {pago.estado === "pagado" ? "Cobrado" : "Parcial"} <Check size={14} />
+                            </span>
+                            <ComprobanteAcciones
+                              pagoId={pago.id}
+                              telefono={contactoDePago(pago).telefono}
+                              mensajeBase={`Te paso el comprobante del cobro de ${formatearMonto(pago.monto)} de ${pago.alumnos?.nombre ?? "tu hijo/a"}.`}
+                            />
+                          </>
                         )}
                         <EditarCobroModal
                           pago={{
