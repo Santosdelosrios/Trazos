@@ -246,12 +246,26 @@ export const RegistrarPagoCuentaCorrienteSchema = z.object({
 });
 
 export const RegistrarGastoSchema = z.object({
+  /** Enum legacy. Durante el rollout PR-6 sigue siendo required y se
+   *  deriva de categoria_id si solo viene este último. */
   categoria: CategoriaGastoSchema,
+  /** PR-6: nueva FK a categorias_gasto_custom. Opcional por backcompat. */
+  categoria_id: z.string().uuid("ID de categoría inválido.").optional().nullable(),
   descripcion: z.string().max(200).optional(),
   monto: MontoSchema,
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
   recurrente: z.boolean().optional().default(false),
 });
+
+export const GuardarCategoriaGastoSchema = z.object({
+  nombre: z
+    .string()
+    .min(1, "El nombre es obligatorio.")
+    .max(60, "El nombre no puede superar los 60 caracteres."),
+  icono: z.string().max(40).optional().nullable(),
+});
+
+export type GuardarCategoriaGastoInput = z.infer<typeof GuardarCategoriaGastoSchema>;
 
 export const GuardarTarifaSchema = z.object({
   valor_hora: z.coerce
