@@ -128,7 +128,8 @@ AS $$
   ingresos AS (
     -- Lo que ya entró este mes (estado pagado)
     SELECT COALESCE(SUM(monto), 0) AS total
-      FROM public.pagos, params
+      FROM public.pagos
+      CROSS JOIN params
      WHERE maestra_id = p_maestra_id
        AND deleted_at IS NULL
        AND estado = 'pagado'
@@ -139,8 +140,11 @@ AS $$
     -- Pagos del mes en estado pendiente/parcial (no cobrados aún).
     -- Usamos created_at del pago como referencia del "mes" cuando el
     -- pago no tiene clase_id; sino la fecha de la clase.
+    -- Nota: usamos CROSS JOIN explícito en vez de la coma para que
+    -- el LEFT JOIN de abajo se asocie a `p`, no a `params`.
     SELECT COALESCE(SUM(p.monto), 0) AS total
-      FROM public.pagos p, params
+      FROM public.pagos p
+      CROSS JOIN params
       LEFT JOIN public.clases c ON c.id = p.clase_id
      WHERE p.maestra_id = p_maestra_id
        AND p.deleted_at IS NULL
@@ -163,7 +167,8 @@ AS $$
       ), 0) AS total,
       COUNT(*) AS cant
     FROM public.agenda ag
-    CROSS JOIN tarifa_global tg, params
+    CROSS JOIN tarifa_global tg
+    CROSS JOIN params
     JOIN public.alumnos a ON a.id = ag.alumno_id
     LEFT JOIN public.pagos p ON p.clase_id = ag.clase_id AND p.deleted_at IS NULL
     WHERE ag.maestra_id = p_maestra_id
@@ -174,7 +179,8 @@ AS $$
   ),
   clases_restantes AS (
     SELECT COUNT(*) AS cant
-      FROM public.agenda ag, params
+      FROM public.agenda ag
+      CROSS JOIN params
      WHERE ag.maestra_id = p_maestra_id
        AND ag.estado = 'pendiente'
        AND ag.fecha >= GREATEST(CURRENT_DATE, params.inicio)
