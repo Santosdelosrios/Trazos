@@ -140,9 +140,8 @@ AS $$
     -- Pagos del mes en estado pendiente/parcial (no cobrados aún).
     -- Usamos created_at del pago como referencia del "mes" cuando el
     -- pago no tiene clase_id; sino la fecha de la clase.
-    -- Nota: CROSS JOIN explícito en vez de la coma para que el LEFT JOIN
-    -- se asocie a `p`, no a `params`. Sin esto, Postgres falla con
-    -- 42P01 "invalid reference to FROM-clause entry for table p".
+    -- Nota: usamos CROSS JOIN explícito en vez de la coma para que
+    -- el LEFT JOIN de abajo se asocie a `p`, no a `params`.
     SELECT COALESCE(SUM(p.monto), 0) AS total
       FROM public.pagos p
       CROSS JOIN params
