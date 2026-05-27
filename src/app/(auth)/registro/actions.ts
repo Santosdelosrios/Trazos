@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { ensureCategoriasDefault } from "@/app/(dashboard)/finanzas/gastos/categorias-actions";
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
@@ -39,6 +40,16 @@ export async function signup(formData: FormData) {
     if (dbError) {
       console.error("DB maestra insert error:", dbError.message);
       // Podríamos borrar el usuario de auth aquí, pero mejor lo dejamos así para este MVP
+    } else {
+      // Sembrar las 5 categorías de gasto default. Idempotente: si
+      // por algún motivo se reintenta el signup no duplica.
+      try {
+        await ensureCategoriasDefault(supabase, data.user.id);
+      } catch (e) {
+        console.error("Seed categorías default falló:", e);
+        // No-op: el usuario puede seguir sin esto; la maestra puede
+        // crear las categorías a mano desde /finanzas/gastos.
+      }
     }
   }
 

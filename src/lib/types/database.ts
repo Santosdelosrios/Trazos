@@ -213,11 +213,37 @@ export interface Gasto {
   id: string;
   maestra_id: string;
   categoria: CategoriaGasto;
+  /** PR-6: nueva FK. Durante el rollout convive con `categoria` (enum). */
+  categoria_id?: string | null;
   descripcion?: string | null;
   monto: number;
   fecha: string;
   recurrente: boolean;
+  deleted_at?: string | null;
+  updated_at?: string;
   created_at: string;
+}
+
+/** PR-6: categoría editable por maestra. */
+export interface CategoriaGastoCustom {
+  id: string;
+  maestra_id: string;
+  nombre: string;
+  icono?: string | null;
+  es_default: boolean;
+  enum_legacy?: CategoriaGasto | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Resultado de gastos_por_categoria_mes(maestra_id, anio, mes). */
+export interface GastoPorCategoriaMes {
+  categoria_id: string;
+  nombre: string;
+  icono: string | null;
+  total: number;
+  cant: number;
 }
 
 export interface Pago {

@@ -5,7 +5,8 @@ import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import ResumenFinanciero from "@/components/finanzas/ResumenFinanciero";
 import DeudoresCard from "@/components/finanzas/DeudoresCard";
 import BannerCobrosAutomaticos from "@/components/finanzas/BannerCobrosAutomaticos";
-import type { ResumenFinancieroMes, EstadoPago, ModeloCobro } from "@/lib/types/database";
+import GastosPorCategoriaCard from "@/components/finanzas/GastosPorCategoriaCard";
+import type { ResumenFinancieroMes, EstadoPago, ModeloCobro, GastoPorCategoriaMes } from "@/lib/types/database";
 import { ESTADO_PAGO_CONFIG } from "@/lib/types/database";
 import { Wallet, CreditCard, Package, Calculator, ChevronRight, Users } from "lucide-react";
 
@@ -22,18 +23,14 @@ export default async function FinanzasPage() {
   if (!user) redirect("/login");
 
   // Parallelize all data fetching
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
   const [
     { data: resumenData },
     { data: ultimosPagos },
     { data: tarifaData },
-    { data: gastosData },
     { data: deudoresAlumnosRaw },
     { data: deudoresFamiliasRaw },
     { data: maestraFlags },
+    { data: gastosCategoriaRaw },
   ] = await Promise.all([
     // Resumen del mes via RPC
     supabase.rpc("resumen_financiero_mes", { p_maestra_id: user.id }),
@@ -55,15 +52,6 @@ export default async function FinanzasPage() {
       .order("vigente_desde", { ascending: false })
       .limit(1),
 
-    // Gastos del mes (vista filtra soft-deleted)
-    supabase
-      .from("gastos_activos")
-      .select("id, categoria, descripcion, monto, fecha")
-      .eq("maestra_id", user.id)
-      .gte("fecha", startOfMonth.toISOString().split("T")[0])
-      .order("fecha", { ascending: false })
-      .limit(5),
-
     // Alumnos con saldo > 0 (deuda monetaria) y SIN familia
     supabase
       .from("alumnos")
@@ -81,9 +69,16 @@ export default async function FinanzasPage() {
       .select("cobros_automaticos_clases")
       .eq("id", user.id)
       .maybeSingle(),
+
+    // Gastos por categoría del mes (PR-6) — no le paso anio/mes para
+    // que use el default (CURRENT_DATE).
+    supabase.rpc("gastos_por_categoria_mes", { p_maestra_id: user.id }),
   ]);
 
   const mostrarBannerCobrosAuto = maestraFlags?.cobros_automaticos_clases === false;
+
+  const gastosCategoria = (gastosCategoriaRaw ?? []) as GastoPorCategoriaMes[];
+  const totalGastosMes = gastosCategoria.reduce((acc, g) => acc + Number(g.total), 0);
 
   const resumen: ResumenFinancieroMes | null = resumenData?.[0] ?? null;
   const tarifaActual = tarifaData?.[0]?.valor_hora ?? null;
@@ -224,27 +219,8 @@ export default async function FinanzasPage() {
             </Link>
           </div>
 
-          {/* Gastos recientes */}
-          <div className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-surface-900">Gastos del Mes</h3>
-              <Link href="/finanzas/gastos" className="flex items-center gap-1 text-xs font-bold text-primary-600 hover:underline">
-                Ver todos <ChevronRight size={14} />
-              </Link>
-            </div>
-            {!gastosData || gastosData.length === 0 ? (
-              <p className="text-xs text-surface-400">Sin gastos este mes.</p>
-            ) : (
-              <div className="space-y-2">
-                {gastosData.map((gasto: any) => (
-                  <div key={gasto.id} className="flex items-center justify-between text-xs">
-                    <span className="text-surface-700">{gasto.descripcion || gasto.categoria}</span>
-                    <span className="font-bold text-danger-500">-{formatearMonto(gasto.monto)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Gastos por categoría del mes (PR-6) */}
+          <GastosPorCategoriaCard items={gastosCategoria} total={totalGastosMes} />
         </div>
       </div>
     </div>
