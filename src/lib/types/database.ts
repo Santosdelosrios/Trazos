@@ -246,6 +246,41 @@ export interface GastoPorCategoriaMes {
   cant: number;
 }
 
+// ------------------------------------------------------------
+// Histórico, proyección y alertas (PR-7)
+// ------------------------------------------------------------
+
+/** Resultado de historico_finanzas(maestra_id, meses_atras). */
+export interface HistoricoMes {
+  mes: string;       // YYYY-MM
+  ingresos: number;
+  gastos: number;
+  neto: number;
+}
+
+/** Resultado de proyeccion_mes(maestra_id, anio, mes). */
+export interface ProyeccionMes {
+  ya_facturado: number;
+  por_cobrar: number;
+  proyectado: number;
+  clases_restantes: number;
+}
+
+export type AlertaFinanzaTipo =
+  | "alumno_deuda_15d"
+  | "cobro_pendiente_30d"
+  | "tarifa_desactualizada"
+  | "caida_facturacion_20pct";
+
+export type AlertaFinanzaSeveridad = "info" | "warning" | "critical";
+
+/** Resultado de alertas_finanzas(maestra_id). */
+export interface AlertaFinanza {
+  tipo: AlertaFinanzaTipo;
+  severidad: AlertaFinanzaSeveridad;
+  payload: Record<string, unknown>;
+}
+
 export interface Pago {
   id: string;
   maestra_id: string;

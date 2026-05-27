@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CalculadoraTarifa from "@/components/finanzas/CalculadoraTarifa";
+import SugerenciaTarifaCard from "@/components/finanzas/SugerenciaTarifaCard";
 import { Calculator } from "lucide-react";
+import { getPlan } from "@/lib/plan";
+import { mesesEntreFechas } from "@/lib/finanzas/inflacion";
 
 export const metadata = {
   title: "Tarifas | Trazos",
@@ -13,16 +16,38 @@ export default async function TarifasPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Tarifa activa
-  const { data: tarifaData } = await supabase
-    .from("tarifas")
-    .select("valor_hora")
-    .eq("maestra_id", user.id)
-    .eq("activa", true)
-    .order("vigente_desde", { ascending: false })
-    .limit(1);
+  const [
+    { data: tarifaData },
+    { data: ultimoMesRaw },
+    plan,
+  ] = await Promise.all([
+    supabase
+      .from("tarifas")
+      .select("valor_hora, vigente_desde")
+      .eq("maestra_id", user.id)
+      .eq("activa", true)
+      .order("vigente_desde", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
 
-  const tarifaActual = tarifaData?.[0]?.valor_hora ?? null;
+    supabase.rpc("ultimo_mes_inflacion"),
+
+    getPlan(supabase, user.id),
+  ]);
+
+  const tarifaActual = tarifaData?.valor_hora ?? null;
+  const vigenteDesde = tarifaData?.vigente_desde ?? null;
+
+  // Calculamos la inflación acumulada solo si hay tarifa y fecha
+  let inflacionAcumulada = 0;
+  if (vigenteDesde) {
+    const { data: acum } = await supabase.rpc("inflacion_acumulada", {
+      p_desde: vigenteDesde,
+    });
+    inflacionAcumulada = Number(acum) || 0;
+  }
+  const meses = vigenteDesde ? mesesEntreFechas(vigenteDesde) : 0;
+  const ultimoMesDatos = (ultimoMesRaw as string | null) ?? null;
 
   return (
     <div className="animate-fade-in-up space-y-6 pb-12">
@@ -34,6 +59,14 @@ export default async function TarifasPage() {
           Calculá tu valor hora ideal y definí la tarifa para tus clases.
         </p>
       </div>
+
+      <SugerenciaTarifaCard
+        tarifaActual={tarifaActual}
+        inflacionAcumulada={inflacionAcumulada}
+        meses={meses}
+        ultimoMesDatos={ultimoMesDatos}
+        esPremium={plan === "premium"}
+      />
 
       <CalculadoraTarifa tarifaActual={tarifaActual} />
     </div>
