@@ -57,9 +57,9 @@ export default async function DetalleClasePage({
     redirect("/clases");
   }
 
-  // 2. Obtener pago asociado
+  // 2. Obtener pago asociado (vista filtra soft-deleted)
   const { data: pago } = await supabase
-    .from("pagos")
+    .from("pagos_activos")
     .select("monto, estado")
     .eq("clase_id", registro.clase_id)
     .eq("alumno_id", registro.alumno_id)

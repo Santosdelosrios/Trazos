@@ -37,6 +37,45 @@ export async function updateProfile(formData: FormData) {
   redirect("/perfil?success=true");
 }
 
+export async function setMensajeria(data: {
+  datos_pago: string | null;
+  template_recordatorio: string | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Trim + normalización: string vacío → NULL (que el template caiga
+  // al default sin tener que blanquear con SQL).
+  const datosPago = data.datos_pago && data.datos_pago.trim()
+    ? data.datos_pago.trim()
+    : null;
+  const template = data.template_recordatorio && data.template_recordatorio.trim()
+    ? data.template_recordatorio
+    : null;
+
+  if (datosPago && datosPago.length > 500) {
+    throw new Error("Los datos de pago no pueden superar los 500 caracteres.");
+  }
+  if (template && template.length > 2000) {
+    throw new Error("El template no puede superar los 2000 caracteres.");
+  }
+
+  const { error } = await supabase
+    .from("maestras")
+    .update({
+      datos_pago: datosPago,
+      template_recordatorio: template,
+    })
+    .eq("id", user.id);
+
+  if (error) throw new Error("No se pudo guardar la mensajería: " + error.message);
+
+  revalidatePath("/perfil");
+  revalidatePath("/finanzas/cobranzas");
+  revalidatePath("/finanzas/cuentas");
+}
+
 export async function setCobrosAutomaticos(activado: boolean) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

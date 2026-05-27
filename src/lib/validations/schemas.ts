@@ -260,6 +260,24 @@ export const GuardarTarifaSchema = z.object({
     .max(10_000_000, "Tarifa excesivamente alta."),
 });
 
+export const MedioPagoSchema = z.enum([
+  "efectivo",
+  "transferencia",
+  "mercadopago",
+  "otro",
+]);
+
+/** Confirmación de un cobro (PR-3): exige medio de pago + fecha. */
+export const ConfirmarPagoSchema = z.object({
+  pago_id: z.string().uuid("ID de cobro inválido."),
+  monto: MontoSchema,
+  estado: z.enum(["pagado", "parcial"]),  // confirmar nunca deja pendiente
+  medio_pago: MedioPagoSchema,
+  fecha_pago: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
+  comprobante_url: z.string().max(500).optional(),
+  nota: z.string().max(300).optional(),
+});
+
 export type RegistrarPagoInput = z.infer<typeof RegistrarPagoSchema>;
 export type CargarCreditosInput = z.infer<typeof CargarCreditosSchema>;
 export type RegistrarGastoInput = z.infer<typeof RegistrarGastoSchema>;

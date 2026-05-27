@@ -14,19 +14,32 @@ export default async function CobranzasPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch maestra name
+  // Fetch maestra info (nombre + datos para mensajería)
   const { data: maestraData } = await supabase
     .from("maestras")
-    .select("nombre")
+    .select("nombre, datos_pago, template_recordatorio")
     .eq("id", user.id)
     .maybeSingle();
-  
-  const nombreMaestra = maestraData?.nombre ?? user.user_metadata?.nombre ?? "Profe";
 
-  // Pagos con datos del alumno
+  const nombreMaestra = maestraData?.nombre ?? user.user_metadata?.nombre ?? "Profe";
+  const datosPago = maestraData?.datos_pago ?? null;
+  const templateRecordatorio = maestraData?.template_recordatorio ?? null;
+
+  // Pagos con datos del alumno + responsable (vista filtra soft-deleted).
+  // Embed: alumnos → familia para resolver el teléfono del responsable
+  // siguiendo la cadena familia → alumno.
   const { data: pagos } = await supabase
-    .from("pagos")
-    .select("*, alumnos(nombre, apellido)")
+    .from("pagos_activos")
+    .select(`
+      *,
+      alumnos!inner (
+        nombre, apellido,
+        responsable_nombre, responsable_telefono,
+        familia:familias!alumnos_familia_id_fkey (
+          responsable_nombre, responsable_telefono
+        )
+      )
+    `)
     .eq("maestra_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -61,7 +74,12 @@ export default async function CobranzasPage() {
 
       <FormNuevoPago alumnos={alumnos ?? []} tarifaActual={tarifaActual} />
 
-      <TablaCobranzas pagos={pagos ?? []} nombreMaestra={nombreMaestra} />
+      <TablaCobranzas
+        pagos={pagos ?? []}
+        nombreMaestra={nombreMaestra}
+        templateRecordatorio={templateRecordatorio}
+        datosPago={datosPago}
+      />
     </div>
   );
 }

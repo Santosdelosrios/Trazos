@@ -51,7 +51,7 @@ export default async function PerfilPage({
 
     supabase
       .from("maestras")
-      .select("nombre, created_at, plan, calendar_token, cobros_automaticos_clases")
+      .select("nombre, created_at, plan, calendar_token, cobros_automaticos_clases, datos_pago, template_recordatorio")
       .eq("id", user.id)
       .maybeSingle(),
   ]);
@@ -68,6 +68,8 @@ export default async function PerfilPage({
     totalClases: totalClases ?? 0,
     clasesMes: clasesMes ?? 0,
     cobrosAutomaticos: maestraData?.cobros_automaticos_clases !== false,
+    datosPago: maestraData?.datos_pago ?? null,
+    templateRecordatorio: maestraData?.template_recordatorio ?? null,
   };
 
   return (

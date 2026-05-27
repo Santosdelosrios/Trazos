@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import PerfilStats from "./PerfilStats";
 import CobrosAutomaticosToggle from "./CobrosAutomaticosToggle";
+import MensajeriaEditor from "./MensajeriaEditor";
 import {
   User,
   Mail,
@@ -34,6 +35,8 @@ interface ProfileData {
   totalClases: number;
   clasesMes: number;
   cobrosAutomaticos: boolean;
+  datosPago: string | null;
+  templateRecordatorio: string | null;
 }
 
 export default function PerfilClient({
@@ -214,6 +217,12 @@ export default function PerfilClient({
 
       {/* Cobros automáticos */}
       <CobrosAutomaticosToggle inicial={profile.cobrosAutomaticos} />
+
+      {/* Mensajería */}
+      <MensajeriaEditor
+        datosPagoIniciales={profile.datosPago}
+        templateInicial={profile.templateRecordatorio}
+      />
 
       {/* Mi Plan */}
       <div className="rounded-2xl bg-white border border-surface-200 shadow-sm overflow-hidden">
