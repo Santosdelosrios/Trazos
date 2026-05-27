@@ -2,15 +2,18 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
-import type { CategoriaGasto, EstadoPago } from "@/lib/types/database";
+import type { CategoriaGasto, EstadoPago, MedioPago } from "@/lib/types/database";
 import {
   GuardarTarifaSchema,
   RegistrarGastoSchema,
   RegistrarPagoSchema,
   CargarCreditosSchema,
   RegistrarPagoCuentaCorrienteSchema,
+  ConfirmarPagoSchema,
 } from "@/lib/validations/schemas";
 import { TAG } from "@/lib/db/tags";
+import { validarImputacionManual } from "@/lib/finanzas/imputacion";
+import type { LineaImputacion } from "@/lib/finanzas/imputacion";
 
 // ============================================================
 // TARIFAS
@@ -92,7 +95,18 @@ export async function registrarGasto(data: {
 
 export async function eliminarGasto(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("gastos").delete().eq("id", id);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Soft delete: las queries de listado usan gastos_activos que filtra
+  // deleted_at IS NULL, así que para la maestra es invisible. Para
+  // auditoría queda la fila marcada con timestamp.
+  const { error } = await supabase
+    .from("gastos")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("maestra_id", user.id)
+    .is("deleted_at", null);
   if (error) throw new Error(error.message);
 
   revalidateTag(TAG.GASTOS, "max");
@@ -155,7 +169,8 @@ export async function actualizarEstadoPago(id: string, estado: EstadoPago) {
   const { error } = await supabase
     .from("pagos")
     .update(updateData)
-    .eq("id", id);
+    .eq("id", id)
+    .is("deleted_at", null);
 
   if (error) throw new Error(error.message);
 
@@ -199,7 +214,8 @@ export async function actualizarPago(id: string, data: {
       periodo: parsed.data.periodo || null,
     })
     .eq("id", id)
-    .eq("maestra_id", user.id);
+    .eq("maestra_id", user.id)
+    .is("deleted_at", null);
 
   if (error) throw new Error(error.message);
 
@@ -212,7 +228,18 @@ export async function actualizarPago(id: string, data: {
 
 export async function eliminarPago(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("pagos").delete().eq("id", id);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Soft delete: queda invisible para listados (filtran vía pagos_activos)
+  // pero conservamos la fila para auditoría y para no romper FKs
+  // (imputaciones_pago, movimientos_cuenta) que la referencian.
+  const { error } = await supabase
+    .from("pagos")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("maestra_id", user.id)
+    .is("deleted_at", null);
   if (error) throw new Error(error.message);
 
   revalidateTag(TAG.PAGOS, "max");
@@ -352,6 +379,108 @@ export async function registrarPagoCuentaCorriente(data: {
   });
 
   if (errMov) throw new Error(errMov.message);
+
+  revalidateTag(TAG.PAGOS, "max");
+  revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
+  revalidatePath("/finanzas");
+  revalidatePath("/finanzas/cobranzas");
+  revalidatePath("/dashboard");
+}
+
+// ============================================================
+// CONFIRMAR PAGO — PR-3
+//
+// Reemplaza el flujo "marcar pagado" directo. Flujo:
+//  1. La maestra abre el modal de confirmación de un pago pendiente.
+//  2. El modal valida y sube el comprobante (si hay) al Storage,
+//     obteniendo el `path`.
+//  3. Se llama a esta action con todos los campos + las imputaciones.
+//  4. Action: update del pago (estado, medio, fecha, comprobante,
+//     nota) + insert de imputaciones_pago.
+//
+// Las imputaciones son opcionales (si el pago no se asocia a clases
+// específicas — ej. abono mensual — la lista queda vacía).
+// ============================================================
+
+export async function confirmarPago(input: {
+  pago_id: string;
+  monto: number;
+  estado: EstadoPago;          // pagado | parcial
+  medio_pago: MedioPago;
+  fecha_pago: string;          // YYYY-MM-DD
+  comprobante_url?: string | null;
+  nota?: string | null;
+  imputaciones?: LineaImputacion[];
+}) {
+  const parsed = ConfirmarPagoSchema.safeParse({
+    pago_id: input.pago_id,
+    monto: input.monto,
+    estado: input.estado,
+    medio_pago: input.medio_pago,
+    fecha_pago: input.fecha_pago,
+    comprobante_url: input.comprobante_url || undefined,
+    nota: input.nota || undefined,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  // Verificamos que el pago exista y sea de la maestra
+  const { data: pagoExistente } = await supabase
+    .from("pagos_activos")
+    .select("id, alumno_id, monto")
+    .eq("id", parsed.data.pago_id)
+    .eq("maestra_id", user.id)
+    .maybeSingle();
+  if (!pagoExistente) throw new Error("El cobro ya no existe o no es tuyo.");
+
+  // Validamos imputaciones contra clases pendientes
+  const imputaciones = input.imputaciones ?? [];
+  if (imputaciones.length > 0) {
+    const { data: pendientesRaw } = await supabase.rpc(
+      "clases_pendientes_imputacion",
+      { p_alumno_id: pagoExistente.alumno_id }
+    );
+    const pendientes = (pendientesRaw ?? []) as Array<{
+      clase_id: string; fecha: string; tema: string;
+      monto_total: number; monto_imputado: number; pendiente: number;
+    }>;
+    validarImputacionManual(pendientes, imputaciones, parsed.data.monto);
+  }
+
+  // 1. Update del pago
+  const { error: errUpdate } = await supabase
+    .from("pagos")
+    .update({
+      monto: parsed.data.monto,
+      estado: parsed.data.estado,
+      medio_pago: parsed.data.medio_pago,
+      fecha_pago: parsed.data.fecha_pago,
+      comprobante_url: parsed.data.comprobante_url || null,
+      nota: parsed.data.nota || null,
+    })
+    .eq("id", parsed.data.pago_id)
+    .eq("maestra_id", user.id)
+    .is("deleted_at", null);
+  if (errUpdate) throw new Error("Error al confirmar el cobro: " + errUpdate.message);
+
+  // 2. Insert de imputaciones (si las hay).
+  //    Idempotencia: primero borramos las anteriores del mismo pago
+  //    por si la maestra reabre el modal y cambia el reparto.
+  if (imputaciones.length > 0) {
+    await supabase.from("imputaciones_pago").delete().eq("pago_id", parsed.data.pago_id);
+    const filas = imputaciones.map((i) => ({
+      pago_id: parsed.data.pago_id,
+      clase_id: i.clase_id,
+      monto_imputado: i.monto_imputado,
+    }));
+    const { error: errImp } = await supabase.from("imputaciones_pago").insert(filas);
+    if (errImp) throw new Error("Error al guardar imputaciones: " + errImp.message);
+  }
 
   revalidateTag(TAG.PAGOS, "max");
   revalidateTag(TAG.RESUMEN_FINANCIERO, "max");
