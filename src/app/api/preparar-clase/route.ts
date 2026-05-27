@@ -68,13 +68,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Clase no encontrada." }, { status: 404 });
     }
 
+    // alumnos.grado es text libre desde la migración 010_nivel_educativo
+    // (puede ser "3° grado", "2° año secundaria", "Universitario", etc.).
+    // Lo usamos tal cual viene; antes lo envolvíamos en `${grado}° grado`
+    // y para alumnos no-primarios quedaba "Universitario° grado".
     const alumno = agenda.alumnos as unknown as
-      | { nombre: string; apellido: string; grado: number | null }
+      | { nombre: string; apellido: string; grado: string | null }
       | null;
     const nombreAlumno = alumno
       ? `${alumno.nombre} ${alumno.apellido}`.trim()
       : "el alumno";
-    const grado = alumno?.grado ? `${alumno.grado}° grado` : "No especificado";
+    const grado = alumno?.grado?.trim() || "No especificado";
 
     // Historial de hitos del alumno (lo que distingue el plan de uno genérico)
     const { data: hitos } = await supabase
