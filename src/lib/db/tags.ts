@@ -28,7 +28,6 @@ export const TAG = {
   HITOS: "hitos",
   PERFIL: "perfil",
   FAMILIAS: "familias",
-  CATEGORIAS_GASTO: "categorias-gasto",
 } as const;
 
 export type TagName = (typeof TAG)[keyof typeof TAG];

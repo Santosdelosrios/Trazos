@@ -4,10 +4,8 @@ import { formatearMonto } from "@/lib/finanzas/formatearMonto";
 import {
   CATEGORIA_GASTO_LABELS,
   type CategoriaGasto,
-  type CategoriaGastoCustom,
 } from "@/lib/types/database";
 import FormNuevoGasto from "./FormNuevoGasto";
-import GestionCategorias from "./GestionCategorias";
 import { Package, RefreshCw } from "lucide-react";
 import { CategoriaGastoIcon } from "@/components/ui/CategoriaGastoIcon";
 import BotonEliminarGasto from "@/components/finanzas/BotonEliminarGasto";
@@ -23,23 +21,11 @@ export default async function GastosPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: gastos }, { data: categoriasRaw }] = await Promise.all([
-    supabase
-      .from("gastos_activos")
-      .select("*")
-      .eq("maestra_id", user.id)
-      .order("fecha", { ascending: false }),
-
-    supabase
-      .from("categorias_gasto_activas")
-      .select("id, nombre, icono, es_default, enum_legacy")
-      .eq("maestra_id", user.id)
-      .order("es_default", { ascending: false })
-      .order("nombre"),
-  ]);
-
-  const categorias = (categoriasRaw ?? []) as CategoriaGastoCustom[];
-  const categoriaPorId = new Map(categorias.map((c) => [c.id, c]));
+  const { data: gastos } = await supabase
+    .from("gastos_activos")
+    .select("*")
+    .eq("maestra_id", user.id)
+    .order("fecha", { ascending: false });
 
   // Total del mes
   const startOfMonth = new Date();
@@ -72,10 +58,7 @@ export default async function GastosPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-start">
-        <FormNuevoGasto categorias={categorias} />
-        <GestionCategorias categorias={categorias} />
-      </div>
+      <FormNuevoGasto />
 
       {/* Lista de gastos */}
       {!gastos || gastos.length === 0 ? (
@@ -91,14 +74,6 @@ export default async function GastosPage() {
           <div className="divide-y divide-surface-100">
             {gastos.map((gasto: any) => {
               const cat = gasto.categoria as CategoriaGasto;
-              // PR-6: si el gasto tiene categoria_id, usamos el nombre
-              // de la categoría custom. Si la categoría fue eliminada
-              // (categoria_id apunta a una soft-deleted), el nombre no
-              // está en el mapa y caemos al enum legacy.
-              const customNombre = gasto.categoria_id
-                ? categoriaPorId.get(gasto.categoria_id)?.nombre
-                : null;
-              const categoriaLabel = customNombre ?? CATEGORIA_GASTO_LABELS[cat];
               return (
                 <div
                   key={gasto.id}
@@ -110,10 +85,10 @@ export default async function GastosPage() {
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-surface-900">
-                        {gasto.descripcion || categoriaLabel}
+                        {gasto.descripcion || CATEGORIA_GASTO_LABELS[cat]}
                       </p>
                       <p className="text-xs text-surface-400">
-                        {categoriaLabel} ·{" "}
+                        {CATEGORIA_GASTO_LABELS[cat]} ·{" "}
                         {new Date(gasto.fecha + "T12:00:00").toLocaleDateString("es-AR", {
                           day: "numeric",
                           month: "short",

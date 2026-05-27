@@ -62,7 +62,6 @@ export async function guardarTarifa(data: {
 
 export async function registrarGasto(data: {
   categoria: CategoriaGasto;
-  categoria_id?: string | null;
   descripcion?: string;
   monto: number;
   fecha: string;
@@ -77,39 +76,9 @@ export async function registrarGasto(data: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
 
-  // Dual-write PR-6: si vino categoria_id, leemos su enum_legacy para
-  // popular `categoria` (NOT NULL). Si vino solo el enum (form viejo),
-  // intentamos resolver el categoria_id de la default que mappea.
-  let categoriaEnum = parsed.data.categoria;
-  let categoriaId = parsed.data.categoria_id ?? null;
-
-  if (categoriaId) {
-    const { data: cat } = await supabase
-      .from("categorias_gasto_activas")
-      .select("enum_legacy")
-      .eq("id", categoriaId)
-      .eq("maestra_id", user.id)
-      .maybeSingle();
-    if (!cat) throw new Error("La categoría seleccionada ya no existe.");
-    // Si la categoría custom no tiene enum_legacy mapeado (ej:
-    // "Capacitación" o una creada por la maestra), caemos a "otro".
-    categoriaEnum = (cat.enum_legacy as CategoriaGasto | null) ?? "otro";
-  } else {
-    // Solo vino el enum legacy: buscamos la default correspondiente.
-    const { data: cat } = await supabase
-      .from("categorias_gasto_activas")
-      .select("id")
-      .eq("maestra_id", user.id)
-      .eq("enum_legacy", categoriaEnum)
-      .eq("es_default", true)
-      .maybeSingle();
-    categoriaId = cat?.id ?? null;
-  }
-
   const { error } = await supabase.from("gastos").insert({
     maestra_id: user.id,
-    categoria: categoriaEnum,
-    categoria_id: categoriaId,
+    categoria: parsed.data.categoria,
     descripcion: parsed.data.descripcion || null,
     monto: parsed.data.monto,
     fecha: parsed.data.fecha,

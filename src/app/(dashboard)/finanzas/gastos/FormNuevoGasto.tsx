@@ -2,31 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { registrarGasto } from "@/app/(dashboard)/finanzas/actions";
-import type { CategoriaGasto, CategoriaGastoCustom } from "@/lib/types/database";
+import type { CategoriaGasto } from "@/lib/types/database";
 import { Plus, Save } from "lucide-react";
 import FormField, { FIELD_INPUT_CLASS, FIELD_INPUT_CLASS_PLAIN } from "@/components/ui/FormField";
 import { useToast } from "@/components/ui/Toast";
 
-interface Props {
-  /** PR-6: categorías editables de la maestra. Si está vacío usamos los
-   *  5 valores del enum legacy (fallback para entornos viejos sin
-   *  seeder corrido). */
-  categorias: CategoriaGastoCustom[];
-}
-
-export default function FormNuevoGasto({ categorias }: Props) {
+export default function FormNuevoGasto() {
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
-  const [categoriaId, setCategoriaId] = useState<string>(
-    () => categorias[0]?.id ?? "material"
-  );
+  const [categoria, setCategoria] = useState<CategoriaGasto>("material");
   const [descripcion, setDescripcion] = useState("");
   const [monto, setMonto] = useState(0);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [recurrente, setRecurrente] = useState(false);
   const toast = useToast();
-
-  const usandoCustom = categorias.length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,14 +23,8 @@ export default function FormNuevoGasto({ categorias }: Props) {
 
     startTransition(async () => {
       try {
-        // PR-6: si tenemos categorías custom mandamos categoria_id;
-        // la action resuelve el enum legacy desde el server.
-        // Fallback legacy: si no hay categorías (DB sin seeder), mandamos
-        // el enum directo.
-        const categoriaSeleccionada = categorias.find((c) => c.id === categoriaId);
         await registrarGasto({
-          categoria: (categoriaSeleccionada?.enum_legacy ?? "otro") as CategoriaGasto,
-          categoria_id: usandoCustom ? categoriaId : null,
+          categoria,
           descripcion: descripcion || undefined,
           monto,
           fecha,
@@ -74,39 +57,23 @@ export default function FormNuevoGasto({ categorias }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full rounded-2xl border border-primary-200 bg-white p-6 shadow-sm animate-fade-in-up space-y-4"
+      className="rounded-2xl border border-primary-200 bg-white p-6 shadow-sm animate-fade-in-up space-y-4"
     >
       <h3 className="text-base font-bold text-surface-900">Registrar Gasto</h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Categoría">
-          {usandoCustom ? (
-            <select
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              className={FIELD_INPUT_CLASS}
-              required
-            >
-              {categorias.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          ) : (
-            // Fallback legacy: si no hay seeder (entorno sin migración 022)
-            <select
-              value={categoriaId}
-              onChange={(e) => setCategoriaId(e.target.value)}
-              className={FIELD_INPUT_CLASS}
-            >
-              <option value="viatico">Viático</option>
-              <option value="material">Material</option>
-              <option value="plataforma">Plataforma</option>
-              <option value="impuesto">Impuesto</option>
-              <option value="otro">Otro</option>
-            </select>
-          )}
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value as CategoriaGasto)}
+            className={FIELD_INPUT_CLASS}
+          >
+            <option value="viatico">Viático</option>
+            <option value="material">Material</option>
+            <option value="plataforma">Plataforma</option>
+            <option value="impuesto">Impuesto</option>
+            <option value="otro">Otro</option>
+          </select>
         </FormField>
 
         <FormField label="Monto ($)">
