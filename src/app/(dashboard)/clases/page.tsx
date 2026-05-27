@@ -38,7 +38,11 @@ export default async function ClasesPage() {
       )
     `)
     .eq("clases.maestra_id", user.id)
-    .order("respondido_at", { ascending: false });
+    // Ordenar por la fecha REAL de la clase, no por respondido_at:
+    // las clases "Express" no tienen ejercicio respondido (respondido_at
+    // queda NULL) y Postgres ordena NULLs primero en DESC, lo que las
+    // empujaba todas al tope sin importar la fecha real.
+    .order("fecha", { ascending: false, referencedTable: "clases" });
 
   if (error) {
     console.error("Error fetching history:", error);
