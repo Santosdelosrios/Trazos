@@ -47,7 +47,10 @@ export default async function AlumnoPerfilPage({
       .eq("maestra_id", user.id)
       .single(),
 
-    // 2. Fetch Clases y Resultados
+    // 2. Fetch Clases y Resultados.
+    // El orden por clases.fecha se hace en cliente más abajo:
+    // PostgREST no permite ordenar las filas top-level por una
+    // columna de tabla embebida.
     supabase
       .from("clase_alumnos")
       .select(`
@@ -68,8 +71,7 @@ export default async function AlumnoPerfilPage({
           )
         )
       `)
-      .eq("alumno_id", id)
-      .order("respondido_at", { ascending: false }),
+      .eq("alumno_id", id),
 
     // 3. Get plan
     getPlan(supabase, user.id),
@@ -98,6 +100,24 @@ export default async function AlumnoPerfilPage({
     redirect("/alumnos");
   }
 
+  // Ordenamos el historial por fecha de la clase (no por respondido_at)
+  // descendente. Si dos clases tienen la misma fecha, desempate por
+  // respondido_at desc para que la última respondida quede primera.
+  // El campo `clases` puede venir como objeto o como array (depende de
+  // si Supabase infiere relación N:1 o N:N), normalizamos.
+  const getFechaClase = (registro: any): string => {
+    const c = registro?.clases;
+    if (!c) return "";
+    return (Array.isArray(c) ? c[0]?.fecha : c.fecha) ?? "";
+  };
+
+  const historialOrdenado = (historial ?? []).slice().sort((a, b) => {
+    const fechaCmp = getFechaClase(b).localeCompare(getFechaClase(a));
+    if (fechaCmp !== 0) return fechaCmp;
+    // Desempate: respondido_at desc.
+    return (b.respondido_at ?? "").localeCompare(a.respondido_at ?? "");
+  });
+
   // 3. Procesar datos para la tabla de temas
   const temasEvaluados = new Map<string, {
     tema_id: string;
@@ -107,9 +127,9 @@ export default async function AlumnoPerfilPage({
     vecesEvaluado: number;
   }>();
 
-  if (historial) {
-    // Como el historial está ordenado por fecha desc (más reciente primero),
-    historial.forEach((registro: any) => {
+  if (historialOrdenado.length > 0) {
+    // Como el historial está ordenado por fecha de clase desc (más reciente primero),
+    historialOrdenado.forEach((registro: any) => {
       // Si la clase todavía no tiene nota (el alumno no la respondió), la ignoramos
       // para la tabla de evolución.
       if (registro.nota === null || registro.nota === undefined) return;
@@ -318,7 +338,7 @@ export default async function AlumnoPerfilPage({
             </div>
             
             <div className="p-4 sm:p-6">
-              {!historial || historial.length === 0 ? (
+              {historialOrdenado.length === 0 ? (
                 <EmptyState
                   icon={History}
                   size="compact"
@@ -327,9 +347,17 @@ export default async function AlumnoPerfilPage({
                 />
               ) : (
                 <div className="relative border-l border-surface-200 ml-3 space-y-8">
-                  {historial.slice(0, 5).map((registro: any) => {
-                    const clase = registro.clases;
-                    const date = registro.respondido_at ? new Date(registro.respondido_at) : new Date(clase.fecha);
+                  {historialOrdenado.slice(0, 5).map((registro: any) => {
+                    const clase = Array.isArray(registro.clases)
+                      ? registro.clases[0]
+                      : registro.clases;
+                    // Mostramos la fecha de la clase (que es por la que ordenamos),
+                    // no la de respondido_at, para que el timeline sea consistente.
+                    const date = clase?.fecha
+                      ? new Date(clase.fecha + "T12:00:00")
+                      : registro.respondido_at
+                      ? new Date(registro.respondido_at)
+                      : new Date();
                     
                     return (
                       <Link key={registro.id} href={`/clases/${registro.id}`} className="relative pl-6 block group hover:bg-surface-50/50 p-2 -ml-2 rounded-xl transition-colors">
@@ -344,7 +372,7 @@ export default async function AlumnoPerfilPage({
                             </span>
                           </div>
                           <h3 className="text-sm font-semibold text-surface-900 group-hover:text-primary-700 transition-colors">
-                            {clase.tema}
+                            {clase?.tema ?? "Clase sin tema"}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={cn(
