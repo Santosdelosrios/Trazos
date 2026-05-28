@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createAlumno, deleteAlumno } from "./actions";
-import { UserPlus, Trash2, GraduationCap, Crown } from "lucide-react";
+import { deleteAlumno } from "./actions";
+import { Trash2, GraduationCap, Crown } from "lucide-react";
 import { getPlan, PLAN_LIMITS } from "@/lib/plan";
-import NivelEducativoSelector from "@/components/alumnos/NivelEducativoSelector";
-import SubmitButton from "@/components/ui/SubmitButton";
+import NuevoAlumnoForm from "./NuevoAlumnoForm";
 import EmptyState from "@/components/ui/EmptyState";
 
 export const metadata = {
@@ -23,15 +22,25 @@ export default async function AlumnosPage() {
     redirect("/login");
   }
 
-  // Fetch alumnos and plan in parallel
-  const [{ data: alumnosRaw, error }, plan] = await Promise.all([
+  // Fetch alumnos, plan y tarifa activa en paralelo
+  const [{ data: alumnosRaw, error }, plan, { data: tarifaData }] = await Promise.all([
     supabase
       .from("alumnos")
       .select("*")
       .eq("maestra_id", user.id)
       .order("created_at", { ascending: false }),
     getPlan(supabase, user.id),
+    supabase
+      .from("tarifas")
+      .select("valor_hora")
+      .eq("maestra_id", user.id)
+      .eq("activa", true)
+      .order("vigente_desde", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
+
+  const tarifaActual = (tarifaData as { valor_hora: number } | null)?.valor_hora ?? null;
 
   if (error) {
     console.error("Error fetching alumnos:", error);
@@ -97,61 +106,7 @@ export default async function AlumnosPage() {
                 </p>
               </div>
             )}
-            <form action={createAlumno} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-1">
-                    Nombre
-                  </label>
-                  <input
-                    name="nombre"
-                    type="text"
-                    required
-                    placeholder="Ej: Juan"
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-surface-700 mb-1">
-                    Apellido
-                  </label>
-                  <input
-                    name="apellido"
-                    type="text"
-                    required
-                    placeholder="Ej: Pérez"
-                    className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-surface-700 mb-2">
-                  Nivel educativo
-                </label>
-                <NivelEducativoSelector name="grado" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-surface-700 mb-1">
-                  Notas (Opcional)
-                </label>
-                <textarea
-                  name="notas"
-                  rows={2}
-                  placeholder="Dificultades, nivel, colegio..."
-                  className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                />
-              </div>
-
-              <SubmitButton
-                disabled={atLimit}
-                className="w-full mt-2"
-                icon={<UserPlus size={16} />}
-              >
-                {atLimit ? "Límite alcanzado" : "Guardar alumno"}
-              </SubmitButton>
-            </form>
+            <NuevoAlumnoForm atLimit={atLimit} tarifaActual={tarifaActual} />
           </div>
         </div>
 
