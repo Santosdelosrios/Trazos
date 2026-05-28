@@ -299,6 +299,14 @@ export async function registrarCobro(data: {
 
   const cobroId = (cobro as { id: string }).id;
 
+  // Imputaciones:
+  //   - Si vinieron explícitas, las usamos tal cual.
+  //   - Si es pack (advance payment): NO auto-imputamos; el saldo se
+  //     compensa contra los cargos futuros que cierren cada clase.
+  //   - Caso general (manual/mercadopago): FIFO contra los cargos
+  //     pendientes del alumno. Esto evita que el cobro quede como
+  //     "saldo a favor invisible" cuando el usuario tenía intención
+  //     de cancelar deudas existentes.
   if (data.imputaciones && data.imputaciones.length > 0) {
     const filas = data.imputaciones.map((i) => ({
       cobro_id: cobroId,
@@ -307,6 +315,32 @@ export async function registrarCobro(data: {
     }));
     const { error: errImp } = await supabase.from("imputaciones").insert(filas);
     if (errImp) throw new Error("Error al guardar imputaciones: " + errImp.message);
+  } else if (origen !== "pack") {
+    // FIFO auto-imputación. Si no hay cargos pendientes, el cobro
+    // queda como saldo a favor (sin imputación) — eso es correcto.
+    const { data: pendientesRaw } = await supabase.rpc(
+      "clases_pendientes_imputacion",
+      { p_alumno_id: data.alumno_id }
+    );
+    const pendientes = (pendientesRaw ?? []) as Array<{
+      clase_id: string;  // realmente cargo_id (shape compat)
+      pendiente: number;
+    }>;
+
+    let restante = data.monto;
+    const filas: { cobro_id: string; cargo_id: string; monto_imputado: number }[] = [];
+    for (const p of pendientes) {
+      if (restante <= 0) break;
+      const aImputar = Math.min(restante, Number(p.pendiente));
+      if (aImputar > 0) {
+        filas.push({ cobro_id: cobroId, cargo_id: p.clase_id, monto_imputado: aImputar });
+        restante -= aImputar;
+      }
+    }
+    if (filas.length > 0) {
+      const { error: errImp } = await supabase.from("imputaciones").insert(filas);
+      if (errImp) throw new Error("Error al auto-imputar el cobro: " + errImp.message);
+    }
   }
 
   revalidarFinanzas();

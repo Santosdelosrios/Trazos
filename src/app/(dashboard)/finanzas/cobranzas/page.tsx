@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import TablaCobranzas from "@/components/finanzas/TablaCobranzas";
+import CobrosSinImputar from "@/components/finanzas/CobrosSinImputar";
+import type { CobroLibre } from "@/components/finanzas/CobrosSinImputar";
 import FormNuevoPago from "./FormNuevoPago";
 import { CreditCard } from "lucide-react";
 
@@ -29,25 +31,38 @@ export default async function CobranzasPage() {
   // evitar que PostgREST falle al inferir FKs desde la vista.
   // Los datos del alumno se resuelven en una query separada y se
   // mergen en memoria.
-  const { data: pagosRaw } = await supabase
-    .from("pagos_activos")
-    .select("*")
-    .eq("maestra_id", user.id)
-    .order("created_at", { ascending: false });
+  const [
+    { data: pagosRaw },
+    { data: cobrosLibresRaw },
+    { data: alumnosRaw },
+  ] = await Promise.all([
+    supabase
+      .from("pagos_activos")
+      .select("*")
+      .eq("maestra_id", user.id)
+      .order("created_at", { ascending: false }),
 
-  // Alumnos con su familia (para resolver responsable + teléfono)
-  const { data: alumnosRaw } = await supabase
-    .from("alumnos")
-    .select(`
-      id, nombre, apellido,
-      responsable_nombre, responsable_telefono,
-      familia:familias!alumnos_familia_id_fkey (
-        responsable_nombre, responsable_telefono
-      )
-    `)
-    .eq("maestra_id", user.id);
+    // Cobros sin imputación (saldo a favor del alumno).
+    supabase
+      .from("cobros_libres_activos")
+      .select("id, alumno_id, monto, monto_libre, fecha, medio_pago, nota")
+      .eq("maestra_id", user.id)
+      .order("fecha", { ascending: false }),
 
-  // Merge: agregar los datos del alumno a cada pago
+    // Alumnos con su familia (para resolver responsable + teléfono)
+    supabase
+      .from("alumnos")
+      .select(`
+        id, nombre, apellido,
+        responsable_nombre, responsable_telefono,
+        familia:familias!alumnos_familia_id_fkey (
+          responsable_nombre, responsable_telefono
+        )
+      `)
+      .eq("maestra_id", user.id),
+  ]);
+
+  // Merge: agregar los datos del alumno a cada pago y cobro libre
   const alumnosMap = new Map(
     (alumnosRaw ?? []).map((a) => [a.id, a])
   );
@@ -55,6 +70,19 @@ export default async function CobranzasPage() {
     ...p,
     alumnos: alumnosMap.get(p.alumno_id) ?? undefined,
   }));
+  const cobrosLibres: CobroLibre[] = (cobrosLibresRaw ?? []).map((c) => {
+    const al = alumnosMap.get(c.alumno_id);
+    return {
+      id: c.id as string,
+      alumno_id: c.alumno_id as string,
+      monto: Number(c.monto),
+      monto_libre: Number(c.monto_libre),
+      fecha: c.fecha as string,
+      medio_pago: c.medio_pago as CobroLibre["medio_pago"],
+      nota: c.nota as string | null,
+      alumnos: al ? { nombre: al.nombre, apellido: al.apellido } : undefined,
+    };
+  });
 
   // Alumnos para el form (con modelo de cobro)
   const { data: alumnos } = await supabase
@@ -86,6 +114,8 @@ export default async function CobranzasPage() {
       </div>
 
       <FormNuevoPago alumnos={alumnos ?? []} tarifaActual={tarifaActual} />
+
+      <CobrosSinImputar cobros={cobrosLibres} />
 
       <TablaCobranzas
         pagos={pagos}
