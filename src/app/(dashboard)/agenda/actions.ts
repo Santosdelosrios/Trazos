@@ -302,10 +302,12 @@ export async function cerrarClaseExpress(id: string) {
     descripcion: `Clase: ${temaNombre}`,
   });
 
-  // 7. Marcar agenda como completada
+  // 7. Marcar agenda como completada y linkear la clase generada.
+  //    Sin clase_id, proyeccion_mes cuenta esta clase en "por cobrar"
+  //    aunque el cargo ya exista (LEFT JOIN ag.clase_id no matchea).
   await supabase
     .from("agenda")
-    .update({ estado: "completada" })
+    .update({ estado: "completada", clase_id: clase.id })
     .eq("id", id);
 
   revalidatePath("/agenda");
