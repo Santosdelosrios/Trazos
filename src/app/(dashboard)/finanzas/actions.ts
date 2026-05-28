@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { getPlan } from "@/lib/plan";
 import type {
-  CategoriaGasto, EstadoPago, MedioPago, ModeloCobro,
+  CategoriaGasto, EstadoPago, MedioPago,
 } from "@/lib/types/database";
 import {
   GuardarTarifaSchema,
@@ -579,8 +579,8 @@ export async function confirmarPago(input: {
   });
 }
 
-// ============================================================
-// Type re-exports para que los callers TS no rompan
-// ============================================================
-
-export type { ModeloCobro };
+// Nota: no se re-exportan tipos desde este archivo. En módulos
+// "use server" Next.js trata cada export nombrado como server action
+// reference y los type re-exports rompen el build con
+// "Export X doesn't exist in target module". Los callers importan
+// los tipos directamente desde @/lib/types/database.
