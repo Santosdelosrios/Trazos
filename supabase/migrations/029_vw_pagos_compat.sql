@@ -65,7 +65,15 @@ CREATE VIEW public.pagos_activos AS
     COALESCE(imp.medio_pago, NULL)                         AS medio_pago,
     COALESCE(imp.comprobante_url, NULL)                    AS comprobante_url,
     COALESCE(imp.nota_cobro, c.descripcion)                AS nota,
-    'importado'::pago_origen_enum                          AS origen,
+    -- pago_origen_enum (definido en 018) tiene: manual, auto_clase,
+    -- abono_excedente. Lo derivamos del concepto+descripción del cargo
+    -- para mantener la semántica de la columna `origen` que la UI
+    -- usaba para los badges "Auto" / "Excedente".
+    CASE
+      WHEN c.concepto = 'abono_mensual'         THEN 'auto_clase'
+      WHEN c.descripcion ILIKE '%excedente%'    THEN 'abono_excedente'
+      ELSE                                           'manual'
+    END::pago_origen_enum                                  AS origen,
     c.deleted_at,
     c.created_at,
     c.updated_at
