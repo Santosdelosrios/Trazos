@@ -173,11 +173,14 @@ export default function NuevaClaseClient({
       const result = await response.json();
       setHitoData(result.hito);
 
-      // Si veníamos de la agenda, marcar como completada
+      // Si veníamos de la agenda, marcar como completada y linkear
+      // la clase generada. Sin claseIdGuardada → proyeccion_mes no
+      // puede correlacionar la agenda con su cargo y la sigue contando
+      // como "por cobrar" aunque ya esté pagada.
       if (agendaId) {
         try {
           const { completarPlanificacion } = await import("../../agenda/actions");
-          await completarPlanificacion(agendaId);
+          await completarPlanificacion(agendaId, claseIdGuardada ?? undefined);
         } catch (agendaError) {
           console.error("Error al completar agenda:", agendaError);
         }
