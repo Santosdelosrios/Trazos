@@ -139,68 +139,53 @@ export async function registrarCobroClase(data: {
   const fechaClase = (clase?.fecha as string | undefined)?.slice(0, 10)
     ?? new Date().toISOString().slice(0, 10);
 
-  // 3. Si la maestra marcó "pagado" al cerrar, registramos directo el pago
-  //    cobrado (mantiene el comportamiento previo de este caller). El helper
-  //    unificado solo cubre el camino "pendiente" / movimientos.
-  if (data.estado === "pagado") {
-    // Validamos modelo: solo tiene sentido en por_clase y abono_mensual
-    const { data: alumno } = await supabase
-      .from("alumnos")
-      .select("modelo_cobro")
-      .eq("id", data.alumno_id)
-      .maybeSingle();
-    const modelo = alumno?.modelo_cobro || "por_clase";
-
-    if (modelo === "por_clase" || modelo === "abono_mensual") {
-      // Idempotencia: si ya hay un pago no soft-deleted para esta
-      // clase+alumno (típicamente un "pendiente" creado por
-      // aplicarModeloCobroCierre cuando el flag está activo), lo
-      // actualizamos a "pagado" en vez de insertar otro y generar
-      // doble cobro.
-      const { data: existente } = await supabase
-        .from("pagos")
-        .select("id")
-        .eq("clase_id", data.clase_id)
-        .eq("alumno_id", data.alumno_id)
-        .eq("maestra_id", user.id)
-        .is("deleted_at", null)
-        .maybeSingle();
-
-      if (existente) {
-        const { error } = await supabase
-          .from("pagos")
-          .update({
-            monto: data.monto,
-            estado: "pagado",
-            fecha_pago: new Date().toISOString().split("T")[0],
-          })
-          .eq("id", existente.id)
-          .is("deleted_at", null);
-        if (error) throw new Error("Error al actualizar cobro: " + error.message);
-        return;
-      }
-
-      const { error } = await supabase.from("pagos").insert({
-        maestra_id: user.id,
-        alumno_id: data.alumno_id,
-        clase_id: data.clase_id,
-        monto: data.monto,
-        estado: "pagado",
-        fecha_pago: new Date().toISOString().split("T")[0],
-        origen: "manual",
-      });
-      if (error) throw new Error("Error al registrar cobro: " + error.message);
-      return;
-    }
-    // Para bolsa/cta corriente, "pagado" no aplica → cae al helper unificado.
-  }
-
-  // 4. Path por defecto: helper unificado (respeta flag y tope)
-  await aplicarModeloCobroCierre(supabase, user.id, {
+  // 3. Generar el cargo correspondiente (lógica unificada por modelo).
+  const resultado = await aplicarModeloCobroCierre(supabase, user.id, {
     clase_id: data.clase_id,
     alumno_id: data.alumno_id,
     monto: data.monto,
     fecha_clase: fechaClase,
     descripcion: "Clase cerrada con evaluación",
   });
+
+  // 4. Si la maestra marcó "pagado" al cerrar y se generó un cargo,
+  //    insertamos también el cobro + imputación. Solo aplica para
+  //    modelos donde "pagado al cerrar" tiene sentido (por_clase,
+  //    abono_mensual). Para pack la plata se cobra al cargar el pack,
+  //    no por clase.
+  //
+  // Idempotencia: si el cargo ya tiene una imputación (típicamente
+  // porque se cerró la clase dos veces), no duplicamos el cobro.
+  // Análogo al fix de 467fab4 sobre el modelo viejo.
+  if (data.estado === "pagado" && resultado.cargo_id &&
+      (resultado.modelo === "por_clase" || resultado.modelo === "abono_mensual")) {
+    const { data: yaImputado } = await supabase
+      .from("imputaciones")
+      .select("id")
+      .eq("cargo_id", resultado.cargo_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (yaImputado) return;
+
+    const { data: cobro, error: errCobro } = await supabase
+      .from("cobros")
+      .insert({
+        maestra_id: user.id,
+        alumno_id: data.alumno_id,
+        fecha: new Date().toISOString().split("T")[0],
+        monto: data.monto,
+        origen: "manual",
+        nota: "Cobrado al cerrar la clase",
+      })
+      .select("id")
+      .single();
+    if (errCobro) throw new Error("Error al registrar cobro: " + errCobro.message);
+
+    await supabase.from("imputaciones").insert({
+      cobro_id: (cobro as { id: string }).id,
+      cargo_id: resultado.cargo_id,
+      monto_imputado: data.monto,
+    });
+  }
 }

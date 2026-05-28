@@ -1,49 +1,50 @@
 // ============================================================
 // cierreClase.ts — Lógica unificada de cobro al cerrar una clase
 //
-// Antes de PR-2 esto vivía duplicado en:
-//  - src/app/(dashboard)/agenda/actions.ts          → cerrarClaseExpress
-//  - src/app/(dashboard)/clases/nueva/actions.ts    → registrarCobroClase
+// Modelo nuevo (post-migración 028): el cierre escribe en `cargos`.
+// Una sola tabla, una sola fórmula de saldo (Σ cargos − Σ cobros).
 //
-// Ahora ambos llaman a aplicarModeloCobroCierre(). Reglas:
+// Reglas por modelo de cobro del alumno:
 //
-// 1. Si la maestra tiene cobros_automaticos_clases = false, el cierre
-//    NO genera cobros ni movimientos (los modelos siguen funcionando
-//    porque la maestra puede cargar el cobro a mano desde Cobranzas).
-//    Excepción: bolsa_creditos descuenta el crédito igual, porque sin
-//    eso la bolsa nunca termina.
+//   por_clase        → cargo concepto='clase', monto = tarifa × duración.
+//   bolsa_creditos   → cargo concepto='clase', monto = tarifa × duración,
+//                      creditos_consumidos = 1. El saldo monetario se
+//                      compensa contra el cobro anticipado del pack.
+//   abono_mensual    → no genera cargo de clase salvo excedente. En su
+//                      lugar, lazy: la primera vez que se cierra una clase
+//                      en un mes, inserta 1 cargo concepto='abono_mensual'
+//                      por ese período. Idempotente vía UNIQUE
+//                      (alumno_id, concepto, periodo).
 //
-// 2. Si está en true:
-//    - por_clase:        pago pendiente, origen 'auto_clase'.
-//    - bolsa_creditos:   descuenta 1 crédito (movimiento clase_descontada).
-//    - cuenta_corriente: cargo en movimientos (monto negativo).
-//    - abono_mensual:    sin cargo, salvo que se supere el tope mensual.
-//      Si abonos.tope_clases_mes es N y este alumno ya tiene N clases
-//      cerradas en el mes (excluyendo la que se está cerrando ahora,
-//      que aún no está vinculada), la clase actual genera un cobro
-//      suelto con origen 'abono_excedente'.
+// Flag de maestra cobros_automaticos_clases = false:
+//   - por_clase / abono_mensual → no se genera nada (la maestra carga el
+//     cobro a mano desde Cobranzas).
+//   - bolsa_creditos → se genera un cargo con monto=0, creditos_consumidos=1
+//     para que el contador de créditos siga avanzando (sin esto el pack
+//     nunca termina).
 // ============================================================
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ModeloCobro } from "@/lib/types/database";
 
 export interface CierreClaseInput {
-  /** ID de la clase ya creada (clases.id) */
+  /** ID de la clase ya creada (clases.id). */
   clase_id: string;
   /** Alumno cuya clase se cerró (la lógica usa su modelo de cobro). */
   alumno_id: string;
   /** Monto a cobrar (tarifa efectiva por la duración real). */
   monto: number;
-  /** YYYY-MM-DD de la clase, usado para detectar excedentes mensuales. */
+  /** YYYY-MM-DD de la clase, usado para periodo del abono y para
+   *  contar excedentes mensuales. */
   fecha_clase: string;
-  /** Texto descriptivo para el movimiento ("Clase: <tema>"). */
+  /** Texto descriptivo para el cargo ("Clase: <tema>"). */
   descripcion?: string;
 }
 
 export interface CierreClaseResultado {
-  /** Cobro generado (si correspondió). */
-  pago_id?: string;
-  /** True si el cobro se generó por superar el tope del abono mensual. */
+  /** Cargo generado (si correspondió). */
+  cargo_id?: string;
+  /** True si el cargo se generó por superar el tope del abono mensual. */
   excedente_abono: boolean;
   /** True si el cierre no generó nada porque el flag está apagado. */
   flag_apagado: boolean;
@@ -52,9 +53,9 @@ export interface CierreClaseResultado {
 }
 
 /**
- * Aplica la lógica de cobro de un cierre de clase. Mutaciones en una
- * sola transacción lógica (Supabase no soporta tx multi-statement vía
- * SDK, así que cada paso es independiente y los errores se propagan).
+ * Aplica la lógica de cargo de un cierre de clase. Mutaciones sobre
+ * `cargos` (no toca `cobros` — eso es responsabilidad de quien marca
+ * la clase como pagada).
  *
  * El caller es responsable de:
  *  - Haber creado la fila en `clases` y el vínculo `clase_alumnos`.
@@ -66,11 +67,11 @@ export async function aplicarModeloCobroCierre(
   maestraId: string,
   input: CierreClaseInput
 ): Promise<CierreClaseResultado> {
-  // 1. Datos del alumno + flag de la maestra
+  // 1. Datos del alumno (modelo + parámetros del abono) y flag de la maestra
   const [{ data: alumno }, { data: maestra }] = await Promise.all([
     supabase
       .from("alumnos")
-      .select("modelo_cobro")
+      .select("modelo_cobro, monto_abono_mensual, tope_clases_mes")
       .eq("id", input.alumno_id)
       .eq("maestra_id", maestraId)
       .maybeSingle(),
@@ -84,11 +85,11 @@ export async function aplicarModeloCobroCierre(
   const modelo: ModeloCobro = (alumno?.modelo_cobro as ModeloCobro) || "por_clase";
   const flagActivo = maestra?.cobros_automaticos_clases !== false;
 
-  // 2. Si el flag está apagado, solo descontamos crédito (bolsa). El
-  //    resto se queda quieto: la maestra cargará el cobro a mano.
+  // 2. Flag apagado: para bolsa, descontamos crédito sin generar deuda
+  //    monetaria. Para el resto, no hacemos nada.
   if (!flagActivo) {
     if (modelo === "bolsa_creditos") {
-      await insertarMovimiento(supabase, maestraId, input, -1, 0, "clase_descontada");
+      await insertarCargoClase(supabase, maestraId, input, 0, 1);
     }
     return { excedente_abono: false, flag_apagado: true, modelo };
   }
@@ -96,18 +97,19 @@ export async function aplicarModeloCobroCierre(
   // 3. Aplicar lógica del modelo
   switch (modelo) {
     case "por_clase":
-      return await crearPagoPendiente(supabase, maestraId, input, "auto_clase");
+      return crearCargoClase(supabase, maestraId, input, input.monto, 0, modelo);
 
     case "bolsa_creditos":
-      await insertarMovimiento(supabase, maestraId, input, -1, 0, "clase_descontada");
-      return { excedente_abono: false, flag_apagado: false, modelo };
-
-    case "cuenta_corriente":
-      await insertarMovimiento(supabase, maestraId, input, 0, -input.monto, "clase_descontada");
-      return { excedente_abono: false, flag_apagado: false, modelo };
+      return crearCargoClase(supabase, maestraId, input, input.monto, 1, modelo);
 
     case "abono_mensual":
-      return await aplicarAbonoMensual(supabase, maestraId, input);
+      return aplicarAbonoMensual(
+        supabase,
+        maestraId,
+        input,
+        Number(alumno?.monto_abono_mensual) || 0,
+        alumno?.tope_clases_mes ?? null
+      );
 
     default:
       return { excedente_abono: false, flag_apagado: false, modelo };
@@ -118,121 +120,116 @@ export async function aplicarModeloCobroCierre(
 // Helpers privados
 // ------------------------------------------------------------
 
-async function crearPagoPendiente(
+async function crearCargoClase(
   supabase: SupabaseClient,
   maestraId: string,
   input: CierreClaseInput,
-  origen: "auto_clase" | "abono_excedente"
+  monto: number,
+  creditosConsumidos: number,
+  modelo: ModeloCobro
 ): Promise<CierreClaseResultado> {
-  // Idempotencia por (clase_id, alumno_id): si ya hay un pago no
-  // soft-deleted para esta clase y alumno, NO creamos otro. Esto
-  // previene el doble cobro que aparecía cuando dos paths del cierre
-  // generaban pago para la misma clase (ej: la maestra cierra desde
-  // la agenda y después marca pendiente desde el wizard de evaluación,
-  // o un doble click en el botón).
-  //
-  // Para excedente_abono mantenemos el guard porque conceptualmente
-  // una clase = un cobro: si el helper ya creó el cobro pendiente
-  // del abono mensual, no debería duplicarlo aunque se vuelva a llamar.
+  const cargoId = await insertarCargoClase(supabase, maestraId, input, monto, creditosConsumidos);
+  return {
+    cargo_id: cargoId,
+    excedente_abono: false,
+    flag_apagado: false,
+    modelo,
+  };
+}
+
+async function insertarCargoClase(
+  supabase: SupabaseClient,
+  maestraId: string,
+  input: CierreClaseInput,
+  monto: number,
+  creditosConsumidos: number,
+  descripcionOverride?: string
+): Promise<string> {
+  // Idempotencia por (clase_id, alumno_id): si ya existe un cargo
+  // concepto='clase' no soft-deleted para esta clase y alumno, NO
+  // creamos otro. Previene el doble cargo que aparece cuando dos
+  // paths del cierre se ejecutan para la misma clase (cerrar express
+  // desde la agenda + cerrar con evaluación, o doble click en el
+  // botón "Marcar pendiente"). Equivalente al fix de 467fab4 sobre
+  // el modelo viejo de `pagos`.
   const { data: existente } = await supabase
-    .from("pagos")
+    .from("cargos")
     .select("id")
     .eq("clase_id", input.clase_id)
     .eq("alumno_id", input.alumno_id)
     .eq("maestra_id", maestraId)
+    .eq("concepto", "clase")
     .is("deleted_at", null)
     .maybeSingle();
 
   if (existente) {
-    return {
-      pago_id: existente.id,
-      excedente_abono: origen === "abono_excedente",
-      flag_apagado: false,
-      modelo: origen === "abono_excedente" ? "abono_mensual" : "por_clase",
-    };
+    return (existente as { id: string }).id;
   }
 
   const { data, error } = await supabase
-    .from("pagos")
+    .from("cargos")
     .insert({
       maestra_id: maestraId,
       alumno_id: input.alumno_id,
+      fecha: input.fecha_clase,
+      concepto: "clase",
+      monto,
+      creditos_consumidos: creditosConsumidos,
       clase_id: input.clase_id,
-      monto: input.monto,
-      estado: "pendiente",
-      fecha_pago: null,
-      origen,
-      nota: origen === "abono_excedente"
-        ? "Clase excedente al tope del abono mensual"
-        : null,
+      descripcion: descripcionOverride || input.descripcion || "Clase",
     })
     .select("id")
     .single();
 
-  if (error) throw new Error("Error al generar cobro automático: " + error.message);
-
-  return {
-    pago_id: data!.id,
-    excedente_abono: origen === "abono_excedente",
-    flag_apagado: false,
-    modelo: origen === "abono_excedente" ? "abono_mensual" : "por_clase",
-  };
-}
-
-async function insertarMovimiento(
-  supabase: SupabaseClient,
-  maestraId: string,
-  input: CierreClaseInput,
-  creditos: number,
-  monto: number,
-  tipo: "clase_descontada"
-) {
-  const { error } = await supabase.from("movimientos_cuenta").insert({
-    maestra_id: maestraId,
-    alumno_id: input.alumno_id,
-    tipo_movimiento: tipo,
-    monto,
-    creditos,
-    referencia_id: input.clase_id,
-    descripcion: input.descripcion || "Clase cerrada",
-  });
-  if (error) throw new Error("Error al registrar movimiento: " + error.message);
+  if (error) throw new Error("Error al generar cargo: " + error.message);
+  return (data as { id: string }).id;
 }
 
 /**
- * Cuenta cuántas clases del alumno cayeron dentro del mismo mes
- * calendario que la actual. Si pasa del tope del abono activo, la
- * clase actual se cobra suelta (excedente).
+ * Lógica del abono mensual.
  *
- * Devuelve sin crear cobro cuando:
- *  - No hay abono activo con tope (NULL) → sin tope, no genera nada.
- *  - Aún quedan créditos dentro del tope.
+ * Genera lazy el cargo del mes (idempotente) y, si hay tope y se
+ * superó, también un cargo de clase suelto por excedente.
  */
 async function aplicarAbonoMensual(
   supabase: SupabaseClient,
   maestraId: string,
-  input: CierreClaseInput
+  input: CierreClaseInput,
+  montoAbono: number,
+  tope: number | null
 ): Promise<CierreClaseResultado> {
-  // Abono activo del alumno
-  const { data: abono } = await supabase
-    .from("abonos")
-    .select("tope_clases_mes")
-    .eq("alumno_id", input.alumno_id)
-    .eq("maestra_id", maestraId)
-    .eq("activo", true)
-    .maybeSingle();
+  const periodo = input.fecha_clase.slice(0, 7); // 'YYYY-MM'
 
-  const tope = abono?.tope_clases_mes as number | null | undefined;
+  // 1. Generación lazy del cargo del abono. upsert con
+  //    ignoreDuplicates aprovecha el UNIQUE(alumno_id, concepto, periodo)
+  //    que define la migración 027: si ya existe el cargo del mes,
+  //    este insert es noop.
+  if (montoAbono > 0) {
+    const { error } = await supabase
+      .from("cargos")
+      .upsert(
+        {
+          maestra_id: maestraId,
+          alumno_id: input.alumno_id,
+          fecha: `${periodo}-01`,
+          concepto: "abono_mensual",
+          monto: montoAbono,
+          periodo,
+          descripcion: `Abono mensual ${periodo}`,
+        },
+        { onConflict: "alumno_id,concepto,periodo", ignoreDuplicates: true }
+      );
+    if (error) throw new Error("Error al generar cargo de abono: " + error.message);
+  }
+
+  // 2. Sin tope: el abono mensual cubre todo, no hay excedentes.
   if (tope == null) {
-    // Sin tope: comportamiento histórico, no se genera nada.
     return { excedente_abono: false, flag_apagado: false, modelo: "abono_mensual" };
   }
 
-  // Rango del mes en que cayó la clase
+  // 3. Contar clases del alumno en el mes. La actual ya fue creada
+  //    por el caller (clase_alumnos), así que está incluida en el count.
   const { inicio, fin } = rangoMesISO(input.fecha_clase);
-
-  // Cuento clases del alumno en ese mes (incluye la actual, ya creada
-  // por el caller). Si la cuenta es > tope, esta clase es excedente.
   const { count } = await supabase
     .from("clase_alumnos")
     .select("clases!inner(fecha,maestra_id)", { count: "exact", head: true })
@@ -246,8 +243,21 @@ async function aplicarAbonoMensual(
     return { excedente_abono: false, flag_apagado: false, modelo: "abono_mensual" };
   }
 
-  // Excedente: cobro suelto
-  return await crearPagoPendiente(supabase, maestraId, input, "abono_excedente");
+  // 4. Excedente: además del abono, esta clase genera un cargo suelto.
+  const cargoId = await insertarCargoClase(
+    supabase,
+    maestraId,
+    input,
+    input.monto,
+    0,
+    "Clase excedente al tope del abono mensual"
+  );
+  return {
+    cargo_id: cargoId,
+    excedente_abono: true,
+    flag_apagado: false,
+    modelo: "abono_mensual",
+  };
 }
 
 export function rangoMesISO(fecha: string): { inicio: string; fin: string } {

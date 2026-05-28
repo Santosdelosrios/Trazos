@@ -6,15 +6,15 @@ import type { ModeloCobro } from "@/lib/types/database";
 // Mock minimalista del SupabaseClient
 //
 // Simula el patrón fluido .from(...).select(...).eq(...).maybeSingle()
-// que usa el helper. Cada test arma un "schema" que mapea tabla →
-// respuesta deseada (consultas) o tabla → bucket de inserciones.
+// que usa el helper, y también .insert(...).select().single() y
+// .upsert(...). Cada test arma un schema que mapea tabla → respuesta
+// (consultas) o tabla → bucket de inserciones / upserts.
 // ============================================================
 
 interface Schema {
-  // Para queries (select / count)
   query?: Record<string, () => unknown>;
-  // Para inserts: recolecta lo insertado por tabla
   inserts: Record<string, Array<Record<string, unknown>>>;
+  upserts: Record<string, Array<Record<string, unknown>>>;
 }
 
 function makeSupabase(schema: Schema) {
@@ -31,27 +31,33 @@ function makeSupabase(schema: Schema) {
         return {
           select() {
             return {
-              single: async () => ({ data: { id: "pago-" + schema.inserts[table].length }, error: null }),
+              single: async () => ({
+                data: { id: `${table}-${schema.inserts[table].length}` },
+                error: null,
+              }),
             };
           },
         };
       },
+      upsert(payload: Record<string, unknown>, _opts?: unknown) {
+        if (!schema.upserts[table]) schema.upserts[table] = [];
+        schema.upserts[table].push(payload);
+        return Promise.resolve({ data: null, error: null });
+      },
       eq() { return fluent; },
-      is() { return fluent; },
       gte() { return fluent; },
       lte() { return fluent; },
+      is() { return fluent; },
       maybeSingle: async () => {
         const fn = schema.query?.[table];
         return { data: fn ? fn() : null, error: null };
       },
-      // count queries terminan en awaited Promise sin .single
       then(onFulfilled: (v: { count: number | null; data: null; error: null }) => unknown) {
         if (countMode) {
           const fn = schema.query?.[table + ":count"];
           const value = fn ? (fn() as number) : 0;
           return Promise.resolve({ count: value, data: null, error: null }).then(onFulfilled);
         }
-        // Fallback: select all → empty
         return Promise.resolve({ count: null, data: null, error: null }).then(onFulfilled);
       },
     };
@@ -73,15 +79,24 @@ function baseInput() {
 function schema(opts: {
   modelo: ModeloCobro;
   flag: boolean;
+  montoAbono?: number;
   tope?: number | null;
   clasesEnMes?: number;
+  /** Si true, el guard de idempotencia encuentra un cargo previo
+   *  y NO inserta uno nuevo. */
+  cargoExistente?: boolean;
 }): Schema {
   return {
     inserts: {},
+    upserts: {},
     query: {
-      alumnos: () => ({ modelo_cobro: opts.modelo }),
+      alumnos: () => ({
+        modelo_cobro: opts.modelo,
+        monto_abono_mensual: opts.montoAbono ?? null,
+        tope_clases_mes: opts.tope ?? null,
+      }),
       maestras: () => ({ cobros_automaticos_clases: opts.flag }),
-      abonos: () => (opts.tope == null ? null : { tope_clases_mes: opts.tope }),
+      cargos: () => (opts.cargoExistente ? { id: "cargo-existente" } : null),
       "clase_alumnos:count": () => opts.clasesEnMes ?? 0,
     },
   };
@@ -92,111 +107,144 @@ function schema(opts: {
 // ============================================================
 
 describe("aplicarModeloCobroCierre — flag off", () => {
-  it("no genera cobro ni movimiento para por_clase", async () => {
+  it("no genera cargo para por_clase", async () => {
     const s = schema({ modelo: "por_clase", flag: false });
     const supa = makeSupabase(s);
     const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
     expect(res.flag_apagado).toBe(true);
-    expect(s.inserts.pagos).toBeUndefined();
-    expect(s.inserts.movimientos_cuenta).toBeUndefined();
+    expect(s.inserts.cargos).toBeUndefined();
+    expect(s.upserts.cargos).toBeUndefined();
   });
 
-  it("aún así descuenta crédito en bolsa_creditos (si no, la bolsa nunca termina)", async () => {
+  it("bolsa_creditos: descuenta crédito vía cargo con monto=0", async () => {
     const s = schema({ modelo: "bolsa_creditos", flag: false });
     const supa = makeSupabase(s);
     const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
     expect(res.flag_apagado).toBe(true);
-    expect(s.inserts.movimientos_cuenta).toHaveLength(1);
-    expect(s.inserts.movimientos_cuenta[0]).toMatchObject({
-      tipo_movimiento: "clase_descontada",
-      creditos: -1,
+    expect(s.inserts.cargos).toHaveLength(1);
+    expect(s.inserts.cargos[0]).toMatchObject({
+      concepto: "clase",
       monto: 0,
+      creditos_consumidos: 1,
+      clase_id: "clase-1",
     });
+  });
+
+  it("abono_mensual con flag off: no genera nada", async () => {
+    const s = schema({ modelo: "abono_mensual", flag: false, montoAbono: 30000 });
+    const supa = makeSupabase(s);
+    const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+    expect(res.flag_apagado).toBe(true);
+    expect(s.inserts.cargos).toBeUndefined();
+    expect(s.upserts.cargos).toBeUndefined();
   });
 });
 
 describe("aplicarModeloCobroCierre — flag on", () => {
-  it("por_clase: genera pago pendiente con origen auto_clase", async () => {
+  it("por_clase: genera cargo concepto='clase' con monto y sin créditos", async () => {
     const s = schema({ modelo: "por_clase", flag: true });
     const supa = makeSupabase(s);
     const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
     expect(res.flag_apagado).toBe(false);
     expect(res.excedente_abono).toBe(false);
-    expect(res.pago_id).toBeTruthy();
-    expect(s.inserts.pagos).toHaveLength(1);
-    expect(s.inserts.pagos[0]).toMatchObject({
-      estado: "pendiente",
-      origen: "auto_clase",
+    expect(res.cargo_id).toBeTruthy();
+    expect(s.inserts.cargos).toHaveLength(1);
+    expect(s.inserts.cargos[0]).toMatchObject({
+      concepto: "clase",
       monto: 5000,
+      creditos_consumidos: 0,
       clase_id: "clase-1",
     });
   });
 
-  it("por_clase: idempotente — no duplica si ya hay pago para esa clase", async () => {
-    const s: Schema = {
-      inserts: {},
-      query: {
-        alumnos: () => ({ modelo_cobro: "por_clase" }),
-        maestras: () => ({ cobros_automaticos_clases: true }),
-        // El maybeSingle a "pagos" devuelve un pago existente.
-        pagos: () => ({ id: "pago-pre-existente" }),
-      },
-    };
-    const supa = makeSupabase(s);
-    const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
-    expect(res.pago_id).toBe("pago-pre-existente");
-    expect(s.inserts.pagos).toBeUndefined(); // NO insertó otro
-  });
-
-  it("cuenta_corriente: registra movimiento con monto negativo, sin pagos", async () => {
-    const s = schema({ modelo: "cuenta_corriente", flag: true });
-    const supa = makeSupabase(s);
-    await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
-    expect(s.inserts.pagos).toBeUndefined();
-    expect(s.inserts.movimientos_cuenta).toHaveLength(1);
-    expect(s.inserts.movimientos_cuenta[0]).toMatchObject({
-      monto: -5000,
-      creditos: 0,
-      tipo_movimiento: "clase_descontada",
-    });
-  });
-
-  it("bolsa_creditos: descuenta 1 crédito vía movimiento", async () => {
+  it("bolsa_creditos: genera cargo con monto y creditos_consumidos=1", async () => {
     const s = schema({ modelo: "bolsa_creditos", flag: true });
     const supa = makeSupabase(s);
-    await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
-    expect(s.inserts.movimientos_cuenta[0].creditos).toBe(-1);
+    const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+    expect(res.flag_apagado).toBe(false);
+    expect(s.inserts.cargos).toHaveLength(1);
+    expect(s.inserts.cargos[0]).toMatchObject({
+      concepto: "clase",
+      monto: 5000,
+      creditos_consumidos: 1,
+    });
   });
 
   describe("abono_mensual", () => {
-    it("sin tope: no genera nada", async () => {
-      const s = schema({ modelo: "abono_mensual", flag: true, tope: null });
+    it("lazy: hace upsert del cargo mensual con periodo correcto", async () => {
+      const s = schema({ modelo: "abono_mensual", flag: true, montoAbono: 30000 });
       const supa = makeSupabase(s);
       const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
       expect(res.excedente_abono).toBe(false);
-      expect(s.inserts.pagos).toBeUndefined();
+      expect(s.upserts.cargos).toHaveLength(1);
+      expect(s.upserts.cargos[0]).toMatchObject({
+        concepto: "abono_mensual",
+        monto: 30000,
+        periodo: "2026-05",
+        fecha: "2026-05-01",
+      });
+      // No genera cargo de clase
+      expect(s.inserts.cargos).toBeUndefined();
     });
 
-    it("dentro del tope: no genera cobro", async () => {
-      const s = schema({ modelo: "abono_mensual", flag: true, tope: 8, clasesEnMes: 5 });
+    it("sin monto_abono: no genera upsert (alumno sin abono activo)", async () => {
+      const s = schema({ modelo: "abono_mensual", flag: true, montoAbono: 0 });
       const supa = makeSupabase(s);
       const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
       expect(res.excedente_abono).toBe(false);
-      expect(s.inserts.pagos).toBeUndefined();
+      expect(s.upserts.cargos).toBeUndefined();
+      expect(s.inserts.cargos).toBeUndefined();
     });
 
-    it("supera el tope: genera cobro suelto con origen abono_excedente", async () => {
-      const s = schema({ modelo: "abono_mensual", flag: true, tope: 8, clasesEnMes: 9 });
+    it("dentro del tope: hace upsert del abono pero no genera cargo de clase", async () => {
+      const s = schema({
+        modelo: "abono_mensual", flag: true, montoAbono: 30000,
+        tope: 8, clasesEnMes: 5,
+      });
+      const supa = makeSupabase(s);
+      const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+      expect(res.excedente_abono).toBe(false);
+      expect(s.upserts.cargos).toHaveLength(1);
+      expect(s.inserts.cargos).toBeUndefined();
+    });
+
+    it("supera el tope: upsert del abono + cargo de clase excedente", async () => {
+      const s = schema({
+        modelo: "abono_mensual", flag: true, montoAbono: 30000,
+        tope: 8, clasesEnMes: 9,
+      });
       const supa = makeSupabase(s);
       const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
       expect(res.excedente_abono).toBe(true);
-      expect(s.inserts.pagos).toHaveLength(1);
-      expect(s.inserts.pagos[0]).toMatchObject({
-        origen: "abono_excedente",
-        estado: "pendiente",
+      expect(res.cargo_id).toBeTruthy();
+      // Upsert del abono mensual
+      expect(s.upserts.cargos).toHaveLength(1);
+      expect(s.upserts.cargos[0]).toMatchObject({ concepto: "abono_mensual" });
+      // Insert del excedente
+      expect(s.inserts.cargos).toHaveLength(1);
+      expect(s.inserts.cargos[0]).toMatchObject({
+        concepto: "clase",
         monto: 5000,
+        descripcion: "Clase excedente al tope del abono mensual",
       });
     });
+  });
+});
+
+describe("idempotencia por (clase_id, alumno_id)", () => {
+  it("por_clase con cargo previo: NO duplica, retorna el existente", async () => {
+    const s = schema({ modelo: "por_clase", flag: true, cargoExistente: true });
+    const supa = makeSupabase(s);
+    const res = await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+    expect(res.cargo_id).toBe("cargo-existente");
+    expect(s.inserts.cargos).toBeUndefined();  // no insert
+  });
+
+  it("bolsa_creditos con cargo previo: NO duplica el descuento", async () => {
+    const s = schema({ modelo: "bolsa_creditos", flag: true, cargoExistente: true });
+    const supa = makeSupabase(s);
+    await aplicarModeloCobroCierre(supa, "maestra-1", baseInput());
+    expect(s.inserts.cargos).toBeUndefined();
   });
 });
 
@@ -218,5 +266,4 @@ describe("rangoMesISO", () => {
   });
 });
 
-// Silenciar console.warn de los mocks si llegara a haber
 vi.spyOn(console, "warn").mockImplementation(() => {});
