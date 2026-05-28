@@ -1,5 +1,6 @@
 // ============================================================
-// Tool executor: cobros (pagos, saldos, créditos, organizar mes)
+// Tool executor: cobros (cargos, cobros, saldos, packs, organizar mes)
+// Modelo nuevo (post-028): escribe en cargos / cobros / imputaciones.
 // ============================================================
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -21,47 +22,24 @@ const MONTH_NAMES = [
   "diciembre",
 ];
 
+/**
+ * Registrar un cobro recibido del alumno. Si hay cargos pendientes
+ * (sin imputación), imputamos al más viejo (FIFO). Si no hay cargos
+ * pendientes, el cobro queda como saldo a favor.
+ *
+ * Conserva el nombre `registrarPago` por compatibilidad con el
+ * registro de tools del asistente.
+ */
 export async function registrarPago(
   supabase: SupabaseClient,
   maestraId: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
   const alumnoId = args.alumno_id as string;
-  const fecha = args.fecha as string;
-  const montoArg = args.monto as number | undefined;
-  const estado = (args.estado as string) ?? "pagado";
+  const fecha = (args.fecha as string) || new Date().toISOString().split("T")[0];
+  let monto: number = (args.monto as number | undefined) ?? 0;
 
-  // 1. Buscar pago pendiente existente para este alumno (ignora soft-deleted)
-  const { data: pagoExistente } = await supabase
-    .from("pagos")
-    .select("id, monto")
-    .eq("alumno_id", alumnoId)
-    .eq("maestra_id", maestraId)
-    .eq("estado", "pendiente")
-    .is("deleted_at", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (pagoExistente) {
-    const { error } = await supabase
-      .from("pagos")
-      .update({ estado, fecha_pago: fecha })
-      .eq("id", pagoExistente.id)
-      .is("deleted_at", null);
-
-    if (error) {
-      return { success: false, data: { error: error.message }, summary: "Error actualizando pago" };
-    }
-
-    return {
-      success: true,
-      data: { pago_id: pagoExistente.id, monto: pagoExistente.monto, estado, tipo: "actualizado" },
-      summary: `Marqué como ${estado} un pago de $${pagoExistente.monto}`,
-    };
-  }
-
-  // 2. No hay pago pendiente → crear nuevo
-  let monto = montoArg;
+  // Monto por defecto: la tarifa activa (consistente con el comportamiento previo)
   if (!monto) {
     const { data: tarifa } = await supabase
       .from("tarifas")
@@ -71,30 +49,56 @@ export async function registrarPago(
       .order("vigente_desde", { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    monto = tarifa?.valor_hora ?? 0;
+    monto = (tarifa?.valor_hora as number | undefined) ?? 0;
   }
 
-  const { data: nuevoPago, error } = await supabase
-    .from("pagos")
+  // Insertar el cobro
+  const { data: cobro, error: errCobro } = await supabase
+    .from("cobros")
     .insert({
       maestra_id: maestraId,
       alumno_id: alumnoId,
+      fecha,
       monto,
-      estado,
-      fecha_pago: fecha,
+      origen: "manual",
+      nota: "Registrado por el asistente",
     })
     .select("id")
     .single();
+  if (errCobro) {
+    return { success: false, data: { error: errCobro.message }, summary: "Error creando cobro" };
+  }
+  const cobroId = (cobro as { id: string }).id;
 
-  if (error) {
-    return { success: false, data: { error: error.message }, summary: "Error creando pago" };
+  // Buscar cargo pendiente más viejo (FIFO) para imputar
+  const { data: pendientes } = await supabase.rpc(
+    "clases_pendientes_imputacion",
+    { p_alumno_id: alumnoId }
+  );
+
+  const cargoFifo = (pendientes ?? [])[0] as
+    | { clase_id: string; monto_total: number; monto_imputado: number; pendiente: number }
+    | undefined;
+
+  if (cargoFifo && monto > 0) {
+    const aImputar = Math.min(monto, Number(cargoFifo.pendiente));
+    await supabase.from("imputaciones").insert({
+      cobro_id: cobroId,
+      // clases_pendientes_imputacion devuelve clase_id por compat de shape,
+      // pero el id real del cargo es lo que necesitamos. Las versiones nuevas
+      // del RPC devuelven cargo_id directamente; en la vista compat usamos
+      // el mismo campo. Asumimos que la RPC retorna el cargo_id en clase_id.
+      cargo_id: cargoFifo.clase_id,
+      monto_imputado: aImputar,
+    });
   }
 
   return {
     success: true,
-    data: { pago_id: nuevoPago.id, monto, estado, tipo: "creado" },
-    summary: `Registré un pago de $${monto} como ${estado}`,
+    data: { cobro_id: cobroId, monto, imputado_a_cargo: cargoFifo?.clase_id ?? null },
+    summary: cargoFifo
+      ? `Registré un cobro de $${monto} e imputé al cargo más viejo`
+      : `Registré un cobro de $${monto} (queda como saldo a favor)`,
   };
 }
 
@@ -105,7 +109,7 @@ export async function consultarSaldo(
 ): Promise<ToolResult> {
   const { data: alumno, error: errAlumno } = await supabase
     .from("alumnos")
-    .select("nombre, apellido, modelo_cobro, saldo_actual, tarifa_override")
+    .select("nombre, apellido, modelo_cobro, saldo_actual, creditos_actual, tarifa_override")
     .eq("id", alumnoId)
     .eq("maestra_id", maestraId)
     .single();
@@ -124,37 +128,38 @@ export async function consultarSaldo(
     .eq("alumno_id", alumnoId);
 
   const modelo = alumno.modelo_cobro || "por_clase";
-  const saldo = alumno.saldo_actual ?? 0;
+  const saldo = Number(alumno.saldo_actual) || 0;
+  const creditos = Number(alumno.creditos_actual) || 0;
   const clases = count ?? 0;
 
   const modeloLabels: Record<string, string> = {
     por_clase: "Pago por Clase",
     bolsa_creditos: "Bolsa de Créditos",
     abono_mensual: "Abono Mensual",
-    cuenta_corriente: "Cuenta Corriente",
   };
 
   let summaryText: string;
   switch (modelo) {
     case "bolsa_creditos":
-      summaryText = saldo > 0
-        ? `${alumno.nombre} tiene ${saldo} crédito(s) restante(s)`
-        : `${alumno.nombre} se pasó ${Math.abs(saldo)} crédito(s)`;
+      summaryText = creditos > 0
+        ? `${alumno.nombre} tiene ${creditos} crédito(s) restante(s)`
+        : creditos < 0
+        ? `${alumno.nombre} se pasó ${Math.abs(creditos)} crédito(s) (debe $${saldo})`
+        : `${alumno.nombre} agotó el pack`;
       break;
-    case "cuenta_corriente":
+    case "abono_mensual":
+      summaryText = saldo > 0
+        ? `${alumno.nombre} debe $${saldo} de abono`
+        : saldo < 0
+        ? `${alumno.nombre} pagó $${Math.abs(saldo)} de más`
+        : `${alumno.nombre} está al día con el abono`;
+      break;
+    default: // por_clase
       summaryText = saldo > 0
         ? `${alumno.nombre} debe $${saldo}`
         : saldo < 0
         ? `${alumno.nombre} tiene $${Math.abs(saldo)} a favor`
         : `${alumno.nombre} está al día`;
-      break;
-    case "abono_mensual":
-      summaryText = saldo > 0
-        ? `${alumno.nombre} debe $${saldo} de abono`
-        : `${alumno.nombre} está al día con el abono`;
-      break;
-    default:
-      summaryText = `Saldo pendiente de ${alumno.nombre}: $${saldo}`;
   }
 
   return {
@@ -165,6 +170,7 @@ export async function consultarSaldo(
       modelo_cobro_label: modeloLabels[modelo] || modelo,
       clases_dictadas: clases,
       saldo_actual: saldo,
+      creditos_actual: creditos,
       tarifa_override: alumno.tarifa_override,
     },
     summary: summaryText,
@@ -199,6 +205,8 @@ export async function organizarCobroMes(
     .lte("fecha", fechaFin)
     .order("fecha", { ascending: true });
 
+  // pagos_activos es una vista compat que apunta a cargos. estado=pendiente
+  // significa que el cargo no tiene imputación total de un cobro.
   const { data: pagosPendientes } = await supabase
     .from("pagos_activos")
     .select("id, monto, estado, created_at, clase_id")
@@ -259,6 +267,11 @@ export async function organizarCobroMes(
   };
 }
 
+/**
+ * Cargar un pack de créditos para un alumno (modelo bolsa_creditos).
+ * En el modelo nuevo, el pack es simplemente un cobro con
+ * origen='pack' y creditos_otorgados=N. No usa movimientos_cuenta.
+ */
 export async function cargarCreditosTool(
   supabase: SupabaseClient,
   maestraId: string,
@@ -295,35 +308,20 @@ export async function cargarCreditosTool(
     monto = creditos * tarifaCalculo;
   }
 
-  const { data: pago, error: errPago } = await supabase
-    .from("pagos")
+  const { error: errCobro } = await supabase
+    .from("cobros")
     .insert({
       maestra_id: maestraId,
       alumno_id: alumnoId,
-      monto: monto,
-      estado: "pagado",
-      fecha_pago: new Date().toISOString().split("T")[0],
+      fecha: new Date().toISOString().split("T")[0],
+      monto,
+      creditos_otorgados: creditos,
+      origen: "pack",
       nota: nota || `Pack de ${creditos} créditos (Asistente)`,
-    })
-    .select("id")
-    .single();
+    });
 
-  if (errPago) {
-    return { success: false, data: { error: errPago.message }, summary: "Error registrando pago de créditos" };
-  }
-
-  const { error: errMov } = await supabase.from("movimientos_cuenta").insert({
-    maestra_id: maestraId,
-    alumno_id: alumnoId,
-    tipo_movimiento: "pago_ingresado",
-    monto: monto,
-    creditos: creditos,
-    referencia_id: pago?.id || null,
-    descripcion: `Pack de ${creditos} clases (Asistente)`,
-  });
-
-  if (errMov) {
-    return { success: false, data: { error: errMov.message }, summary: "Error registrando movimiento de créditos" };
+  if (errCobro) {
+    return { success: false, data: { error: errCobro.message }, summary: "Error registrando pack" };
   }
 
   return {

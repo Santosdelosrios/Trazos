@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { registrarPago, cargarCreditos, registrarPagoCuentaCorriente } from "@/app/(dashboard)/finanzas/actions";
+import { registrarCobro } from "@/app/(dashboard)/finanzas/actions";
 import { formatearMonto } from "@/lib/finanzas/formatearMonto";
-import type { EstadoPago, ModeloCobro } from "@/lib/types/database";
+import type { MedioPago, ModeloCobro } from "@/lib/types/database";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
-import { Plus, Save, Ticket, BookOpen, Wallet } from "lucide-react";
+import { Plus, Save, Ticket, Wallet, BookOpen } from "lucide-react";
 import FormField, { FIELD_INPUT_CLASS, FIELD_INPUT_CLASS_PLAIN } from "@/components/ui/FormField";
 import { useToast } from "@/components/ui/Toast";
 
@@ -21,27 +21,39 @@ interface Props {
   tarifaActual: number;
 }
 
+/**
+ * Form unificado para registrar un cobro recibido.
+ *
+ * Antes había un switch por modelo (registrarPago / cargarCreditos /
+ * registrarPagoCuentaCorriente). Ahora es UN solo action y un solo
+ * form. Lo único que varía por modelo son campos extras opcionales:
+ *
+ *   - bolsa_creditos: aparece "créditos a otorgar" (origen=pack)
+ *   - abono_mensual:  aparece "período" (informativo en la nota)
+ */
 export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
   const [isPending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [alumnoId, setAlumnoId] = useState("");
   const [monto, setMonto] = useState(tarifaActual);
-  const [estado, setEstado] = useState<EstadoPago>("pendiente");
-  const [fechaPago, setFechaPago] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [medioPago, setMedioPago] = useState<MedioPago | "">("");
   const [nota, setNota] = useState("");
   const [periodo, setPeriodo] = useState("");
   const [creditos, setCreditos] = useState(8);
 
-  const selectedAlumno = alumnos.find(a => a.id === alumnoId);
-  const modelo = selectedAlumno?.modelo_cobro || "por_clase";
+  const selectedAlumno = alumnos.find((a) => a.id === alumnoId);
+  const modelo: ModeloCobro = selectedAlumno?.modelo_cobro || "por_clase";
   const modeloConfig = MODELO_COBRO_CONFIG[modelo];
+  const esPack = modelo === "bolsa_creditos";
+  const esAbono = modelo === "abono_mensual";
   const toast = useToast();
 
   function resetForm() {
     setAlumnoId("");
     setMonto(tarifaActual);
-    setEstado("pendiente");
-    setFechaPago("");
+    setFecha(new Date().toISOString().split("T")[0]);
+    setMedioPago("");
     setNota("");
     setPeriodo("");
     setCreditos(8);
@@ -51,57 +63,29 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!alumnoId) return;
+    if (esAbono && !periodo) {
+      toast.error("Indicá el período del abono.");
+      return;
+    }
 
     startTransition(async () => {
       try {
-        switch (modelo) {
-          case "por_clase":
-            await registrarPago({
-              alumno_id: alumnoId,
-              monto,
-              estado,
-              fecha_pago: fechaPago || undefined,
-              nota: nota || undefined,
-            });
-            break;
-
-          case "bolsa_creditos":
-            await cargarCreditos({
-              alumno_id: alumnoId,
-              creditos,
-              monto,
-              nota: nota || undefined,
-            });
-            break;
-
-          case "abono_mensual":
-            if (!periodo) return;
-            await registrarPago({
-              alumno_id: alumnoId,
-              monto,
-              estado,
-              fecha_pago: fechaPago || undefined,
-              nota: nota || undefined,
-              periodo,
-            });
-            break;
-
-          case "cuenta_corriente":
-            await registrarPagoCuentaCorriente({
-              alumno_id: alumnoId,
-              monto,
-              nota: nota || undefined,
-            });
-            break;
-        }
+        await registrarCobro({
+          alumno_id: alumnoId,
+          monto,
+          fecha,
+          medio_pago: medioPago || undefined,
+          nota: nota || (esAbono ? `Abono ${periodo}` : undefined),
+          creditos_otorgados: esPack ? creditos : 0,
+          origen: esPack ? "pack" : "manual",
+        });
         toast.success(
-          modelo === "bolsa_creditos"
+          esPack
             ? `Pack de ${creditos} créditos cargado por ${formatearMonto(monto)}`
             : `Cobro registrado por ${formatearMonto(monto)}`
         );
         resetForm();
       } catch (err) {
-        console.error("Error al registrar pago:", err);
         const msg = err instanceof Error ? err.message : "No se pudo registrar el cobro";
         toast.error(msg);
       }
@@ -126,13 +110,13 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
     >
       <h3 className="text-base font-bold text-surface-900">Registrar Cobro</h3>
 
-      {/* Alumno selector */}
       <FormField label="Alumno">
         <select
           value={alumnoId}
           onChange={(e) => {
-            setAlumnoId(e.target.value);
-            const al = alumnos.find((a) => a.id === e.target.value);
+            const id = e.target.value;
+            setAlumnoId(id);
+            const al = alumnos.find((a) => a.id === id);
             if (al?.modelo_cobro === "bolsa_creditos") {
               setMonto(tarifaActual * 8);
               setCreditos(8);
@@ -153,7 +137,6 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
         </select>
       </FormField>
 
-      {/* Model badge */}
       {alumnoId && (
         <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ${modeloConfig.bg} ${modeloConfig.color}`}>
           <span className="text-base">{modeloConfig.icon}</span>
@@ -161,17 +144,10 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
         </div>
       )}
 
-      {/* Conditional fields by model */}
       <div className="grid gap-4 sm:grid-cols-2">
-
-        {modelo === "bolsa_creditos" && (
+        {esPack && (
           <FormField
-            label={
-              <>
-                <Ticket size={12} className="mr-1 inline" />
-                Cantidad de créditos (clases)
-              </>
-            }
+            label={<><Ticket size={12} className="mr-1 inline" /> Créditos (clases)</>}
           >
             <input
               type="number"
@@ -191,14 +167,9 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
           </FormField>
         )}
 
-        {modelo === "abono_mensual" && (
+        {esAbono && (
           <FormField
-            label={
-              <>
-                <BookOpen size={12} className="mr-1 inline" />
-                Período (mes)
-              </>
-            }
+            label={<><BookOpen size={12} className="mr-1 inline" /> Período (mes)</>}
           >
             <input
               type="month"
@@ -214,7 +185,7 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
           label={
             <>
               <Wallet size={12} className="mr-1 inline" />
-              {modelo === "bolsa_creditos" ? "Monto total del pack ($)" : "Monto ($)"}
+              {esPack ? "Monto total del pack ($)" : "Monto ($)"}
             </>
           }
           hint={
@@ -236,30 +207,29 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
           />
         </FormField>
 
-        {(modelo === "por_clase" || modelo === "abono_mensual") && (
-          <FormField label="Estado">
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value as EstadoPago)}
-              className={FIELD_INPUT_CLASS}
-            >
-              <option value="pendiente">Pendiente</option>
-              <option value="pagado">Pagado</option>
-              <option value="parcial">Parcial</option>
-            </select>
-          </FormField>
-        )}
+        <FormField label="Fecha del cobro">
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            required
+            className={FIELD_INPUT_CLASS}
+          />
+        </FormField>
 
-        {(modelo === "por_clase" || modelo === "abono_mensual") && (
-          <FormField label="Fecha de pago">
-            <input
-              type="date"
-              value={fechaPago}
-              onChange={(e) => setFechaPago(e.target.value)}
-              className={FIELD_INPUT_CLASS}
-            />
-          </FormField>
-        )}
+        <FormField label="Medio de pago">
+          <select
+            value={medioPago}
+            onChange={(e) => setMedioPago(e.target.value as MedioPago | "")}
+            className={FIELD_INPUT_CLASS}
+          >
+            <option value="">Sin especificar</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="mercadopago">Mercado Pago</option>
+            <option value="otro">Otro</option>
+          </select>
+        </FormField>
       </div>
 
       <FormField label="Nota (opcional)">
@@ -267,7 +237,7 @@ export default function FormNuevoPago({ alumnos, tarifaActual }: Props) {
           type="text"
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          placeholder="Ej: Pagó por transferencia"
+          placeholder="Ej: Pagó hasta marzo"
           className={FIELD_INPUT_CLASS_PLAIN}
         />
       </FormField>
