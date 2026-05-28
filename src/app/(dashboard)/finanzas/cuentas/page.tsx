@@ -16,6 +16,9 @@ export interface AlumnoConSaldo {
   apellido: string;
   modelo_cobro: ModeloCobro;
   saldo_actual: number;
+  /** Solo relevante para bolsa_creditos. Positivo = clases disponibles,
+   *  negativo = clases adeudadas (alumno se pasó del pack). */
+  creditos_actual: number;
   tarifa_efectiva: number;
   familia_id: string | null;
   familia_nombre: string | null;
@@ -42,7 +45,7 @@ export default async function CuentasPage() {
     supabase
       .from("alumnos")
       .select(`
-        id, nombre, apellido, modelo_cobro, saldo_actual,
+        id, nombre, apellido, modelo_cobro, saldo_actual, creditos_actual,
         tarifa_override, familia_id, responsable_telefono
       `)
       .eq("maestra_id", user.id)
@@ -120,7 +123,7 @@ export default async function CuentasPage() {
 
   const alumnos: AlumnoConSaldo[] = (alumnosRaw ?? []).map((a: {
     id: string; nombre: string; apellido: string;
-    modelo_cobro: ModeloCobro; saldo_actual: number;
+    modelo_cobro: ModeloCobro; saldo_actual: number; creditos_actual: number | null;
     tarifa_override: number | null; familia_id: string | null;
     responsable_telefono: string | null;
   }) => {
@@ -131,6 +134,7 @@ export default async function CuentasPage() {
       apellido: a.apellido,
       modelo_cobro: a.modelo_cobro,
       saldo_actual: Number(a.saldo_actual) || 0,
+      creditos_actual: Number(a.creditos_actual) || 0,
       tarifa_efectiva: a.tarifa_override ?? tarifaGlobal,
       familia_id: a.familia_id,
       familia_nombre: fam?.nombre ?? null,
