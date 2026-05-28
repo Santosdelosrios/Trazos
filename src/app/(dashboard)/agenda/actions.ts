@@ -23,6 +23,7 @@ export async function planificarClase(rawInput: {
   duracion_estimada: number;
   repetirSemanal?: boolean;
   semanas?: number;
+  diasSemana?: number[];
 }) {
   const supabase = await createClient();
   const {
@@ -33,25 +34,49 @@ export async function planificarClase(rawInput: {
 
   const data = PlanificarClaseSchema.parse(rawInput);
 
-  const recordsToInsert = [];
-  const cantidadSemanas = data.repetirSemanal ? (data.semanas || 1) : 1;
+  // Determinar fechas a generar:
+  //   - Sin repetición → única fecha (data.fecha)
+  //   - Con repetición + sin días específicos → mismo día N semanas
+  //   - Con repetición + días específicos (ej: mar+jue) → para cada
+  //     semana en [0..N), generamos una fila por cada día solicitado
+  //     que caiga en o después de la fecha ancla.
+  const fechas: string[] = [];
+  const fechaAncla = new Date(data.fecha + "T12:00:00");
 
-  for (let i = 0; i < cantidadSemanas; i++) {
-    const fechaClase = new Date(data.fecha + "T12:00:00");
-    fechaClase.setDate(fechaClase.getDate() + i * 7);
+  if (!data.repetirSemanal) {
+    fechas.push(data.fecha);
+  } else {
+    const semanas = data.semanas || 1;
+    const dias = data.diasSemana && data.diasSemana.length > 0
+      ? [...new Set(data.diasSemana)].sort((a, b) => a - b)
+      : [fechaAncla.getDay()];
 
-    recordsToInsert.push({
-      maestra_id: user.id,
-      alumno_id: data.alumno_id,
-      fecha: fechaClase.toISOString().split("T")[0],
-      hora: data.hora,
-      tema_previsto: data.tema_previsto,
-      materia: data.materia,
-      tarifa_esperada: data.tarifa_esperada,
-      duracion_estimada: data.duracion_estimada,
-      estado: "pendiente",
-    });
+    // Inicio de la semana ancla (domingo como base).
+    const inicioSemanaAncla = new Date(fechaAncla);
+    inicioSemanaAncla.setDate(fechaAncla.getDate() - fechaAncla.getDay());
+
+    for (let semana = 0; semana < semanas; semana++) {
+      for (const dia of dias) {
+        const fechaCandidata = new Date(inicioSemanaAncla);
+        fechaCandidata.setDate(inicioSemanaAncla.getDate() + semana * 7 + dia);
+        // Skip días anteriores a la fecha ancla en la semana 0.
+        if (fechaCandidata < fechaAncla) continue;
+        fechas.push(fechaCandidata.toISOString().split("T")[0]);
+      }
+    }
   }
+
+  const recordsToInsert = fechas.map((fecha) => ({
+    maestra_id: user.id,
+    alumno_id: data.alumno_id,
+    fecha,
+    hora: data.hora,
+    tema_previsto: data.tema_previsto,
+    materia: data.materia,
+    tarifa_esperada: data.tarifa_esperada,
+    duracion_estimada: data.duracion_estimada,
+    estado: "pendiente",
+  }));
 
   const { error } = await supabase.from("agenda").insert(recordsToInsert);
 

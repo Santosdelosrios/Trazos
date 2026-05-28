@@ -6,6 +6,7 @@ import { Sparkles, TrendingUp, TrendingDown, Minus, ChevronRight, BookOpen, Hist
 import { getPlan } from "@/lib/plan";
 import ReporteButton from "@/components/premium/ReporteButton";
 import EditarAlumnoModal from "./EditarAlumnoModal";
+import AgendarClaseButton from "@/components/agenda/AgendarClaseButton";
 import EmptyState from "@/components/ui/EmptyState";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
 import type { ModeloCobro } from "@/lib/types/database";
@@ -205,6 +206,10 @@ export default async function AlumnoPerfilPage({
               }}
               tarifaGlobal={tarifaGlobal}
               familias={(familiasList ?? []) as Array<{ id: string; nombre: string; responsable_nombre: string | null }>}
+            />
+            <AgendarClaseButton
+              alumno={{ id: alumno.id, nombre: alumno.nombre, apellido: alumno.apellido }}
+              tarifaActual={tarifaGlobal}
             />
             <Link
               href={`/clases/nueva?alumnoId=${alumno.id}`}

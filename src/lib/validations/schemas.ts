@@ -91,6 +91,10 @@ export const PlanificarClaseSchema = z.object({
   duracion_estimada: z.coerce.number().min(0.25, "La duración mínima es 15 min.").max(12, "La duración máxima es 12 horas."),
   repetirSemanal: z.boolean().optional(),
   semanas: z.coerce.number().int().min(2).max(12).optional(),
+  /** Días de la semana a repetir: 0=domingo, 1=lunes, ..., 6=sábado.
+   *  Solo se usa si repetirSemanal=true. Si vacío o ausente, repite en
+   *  el mismo día de la semana de la fecha ancla (comportamiento previo). */
+  diasSemana: z.array(z.number().int().min(0).max(6)).optional(),
 });
 
 export const ActualizarClaseSchema = z.object({

@@ -37,20 +37,26 @@ export async function createAlumno(formData: FormData) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
   }
 
-  const { error } = await supabase.from("alumnos").insert({
-    maestra_id: user.id,
-    nombre: parsed.data.nombre,
-    apellido: parsed.data.apellido,
-    grado: parsed.data.grado,
-    notas: parsed.data.notas || null,
-  });
+  const { data, error } = await supabase
+    .from("alumnos")
+    .insert({
+      maestra_id: user.id,
+      nombre: parsed.data.nombre,
+      apellido: parsed.data.apellido,
+      grado: parsed.data.grado,
+      notas: parsed.data.notas || null,
+    })
+    .select("id, nombre, apellido")
+    .single();
 
-  if (error) {
-    throw new Error("Error al crear alumno: " + error.message);
+  if (error || !data) {
+    throw new Error("Error al crear alumno: " + (error?.message ?? "sin datos"));
   }
 
   revalidateTag(TAG.ALUMNOS, "max");
   revalidatePath("/alumnos");
+
+  return { id: data.id as string, nombre: data.nombre as string, apellido: data.apellido as string };
 }
 
 export async function deleteAlumno(id: string) {

@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { planificarClase } from "../actions";
 import { CalendarDays, X, ChevronLeft, ChevronRight, RefreshCw, Info } from "lucide-react";
 import type { Feriado } from "@/lib/utils/feriados";
 import type { Materia } from "@/lib/types/database";
+
+// Etiquetas de días de la semana (0=domingo según JS Date.getDay()).
+const DIAS_LABELS = ["D", "L", "M", "M", "J", "V", "S"] as const;
+const DIAS_FULL = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const;
 
 export default function PlanificarModal({
   open,
@@ -13,6 +17,7 @@ export default function PlanificarModal({
   alumnos,
   tarifaActual,
   prefillDate,
+  prefillAlumnoId,
   feriados,
 }: {
   open: boolean;
@@ -20,38 +25,52 @@ export default function PlanificarModal({
   alumnos: { id: string; nombre: string; apellido: string }[];
   tarifaActual: number | null;
   prefillDate?: string;
+  /** Si viene, el modal salta el selector de alumno y arranca en step 2. */
+  prefillAlumnoId?: string;
   feriados: Record<string, Feriado>;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(prefillAlumnoId ? 2 : 1);
   const [formData, setFormData] = useState({
-    alumno_id: "",
+    alumno_id: prefillAlumnoId || "",
     fecha: prefillDate || new Date().toISOString().split("T")[0],
     hora: "09:00",
     tema_previsto: "",
     materia: "general" as Materia,
     duracion_estimada: 1,
     // tarifa_esperada = tarifa × duración (es el monto total, no por hora).
-    // Coincide con el cálculo del onChange de duracion_estimada más abajo.
     tarifa_esperada: (tarifaActual || 0) * 1,
     repetirSemanal: false,
     semanas: 4,
+    diasSemana: [] as number[],  // 0=domingo, 1=lunes, ..., 6=sábado
   });
 
+  // Reset interno cuando cambian las props de prefill (modal reabierto
+  // con distinto contexto, por ej. distinto alumno).
+  useEffect(() => {
+    if (open) {
+      setStep(prefillAlumnoId ? 2 : 1);
+      setFormData((prev) => ({
+        ...prev,
+        alumno_id: prefillAlumnoId || prev.alumno_id,
+        fecha: prefillDate || prev.fecha,
+      }));
+    }
+  }, [open, prefillAlumnoId, prefillDate]);
+
   const resetForm = () => {
-    setStep(1);
+    setStep(prefillAlumnoId ? 2 : 1);
     setFormData({
-      alumno_id: "",
+      alumno_id: prefillAlumnoId || "",
       fecha: prefillDate || new Date().toISOString().split("T")[0],
       hora: "09:00",
       tema_previsto: "",
       materia: "otro" as Materia,
       duracion_estimada: 1,
-      // tarifa_esperada = tarifa × duración (es el monto total, no por hora).
-    // Coincide con el cálculo del onChange de duracion_estimada más abajo.
-    tarifa_esperada: (tarifaActual || 0) * 1,
+      tarifa_esperada: (tarifaActual || 0) * 1,
       repetirSemanal: false,
       semanas: 4,
+      diasSemana: [],
     });
   };
 
@@ -64,7 +83,15 @@ export default function PlanificarModal({
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      await planificarClase(formData);
+      // Solo mandamos diasSemana si el usuario marcó al menos un día
+      // distinto. Si la lista está vacía, dejamos que el server caiga
+      // al comportamiento default (el día de la fecha ancla).
+      await planificarClase({
+        ...formData,
+        diasSemana: formData.repetirSemanal && formData.diasSemana.length > 0
+          ? formData.diasSemana
+          : undefined,
+      });
       resetForm();
       onClose();
     } catch (error: unknown) {
@@ -79,7 +106,26 @@ export default function PlanificarModal({
     onClose();
   };
 
+  const toggleDia = (dia: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      diasSemana: prev.diasSemana.includes(dia)
+        ? prev.diasSemana.filter((d) => d !== dia)
+        : [...prev.diasSemana, dia].sort((a, b) => a - b),
+    }));
+  };
+
   if (!open) return null;
+
+  const alumnoPrefijado = prefillAlumnoId
+    ? alumnos.find((a) => a.id === prefillAlumnoId)
+    : null;
+
+  // Si la fecha ancla tiene día propio y no está marcado en diasSemana,
+  // mostramos un hint para que la maestra entienda qué días se van a generar.
+  const diasEfectivos = formData.repetirSemanal && formData.diasSemana.length > 0
+    ? formData.diasSemana
+    : [new Date(formData.fecha + "T12:00:00").getDay()];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -95,8 +141,14 @@ export default function PlanificarModal({
               <CalendarDays size={18} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-surface-900">Planificar Clase</h2>
-              <p className="text-[10px] font-medium text-surface-500">Paso {step} de 2</p>
+              <h2 className="text-base font-bold text-surface-900">
+                {alumnoPrefijado
+                  ? `Agendar clase para ${alumnoPrefijado.nombre}`
+                  : "Planificar Clase"}
+              </h2>
+              <p className="text-[10px] font-medium text-surface-500">
+                {prefillAlumnoId ? "Cuándo y qué" : `Paso ${step} de 2`}
+              </p>
             </div>
           </div>
           <button
@@ -108,11 +160,13 @@ export default function PlanificarModal({
           </button>
         </div>
 
-        {/* Steps indicator */}
-        <div className="flex gap-1 px-6 pt-4">
-          <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 1 ? "bg-primary-500" : "bg-surface-200")} />
-          <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 2 ? "bg-primary-500" : "bg-surface-200")} />
-        </div>
+        {/* Steps indicator (solo si no hay alumno prefijado) */}
+        {!prefillAlumnoId && (
+          <div className="flex gap-1 px-6 pt-4">
+            <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 1 ? "bg-primary-500" : "bg-surface-200")} />
+            <div className={cn("h-1 flex-1 rounded-full transition-colors", step >= 2 ? "bg-primary-500" : "bg-surface-200")} />
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           {errorMsg && (
@@ -185,7 +239,33 @@ export default function PlanificarModal({
 
           {step === 2 && (
             <>
-              {/* Step 2: Qué y Cuánto */}
+              {/* Si vinimos prefijados, mostramos fecha/hora acá también
+                  porque el step 1 quedó saltado. */}
+              {prefillAlumnoId && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-surface-700 uppercase">Fecha</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.fecha}
+                      onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+                      className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-surface-700 uppercase">Hora</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.hora}
+                      onChange={(e) => setFormData({ ...formData, hora: e.target.value })}
+                      className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-surface-700 uppercase">Tema Previsto</label>
                 <input
@@ -222,7 +302,7 @@ export default function PlanificarModal({
               </div>
 
               {/* Recurrencia */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-3">
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <RefreshCw size={16} className="text-primary-600" />
@@ -236,22 +316,62 @@ export default function PlanificarModal({
                   />
                 </div>
                 {formData.repetirSemanal && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="text-[10px] font-medium text-surface-500">Semanas:</label>
-                    <input
-                      type="number" min="2" max="12"
-                      value={formData.semanas}
-                      onChange={(e) => setFormData({ ...formData, semanas: Number(e.target.value) })}
-                      className="w-16 rounded-lg border border-surface-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
-                    />
-                  </div>
+                  <>
+                    {/* Selector de días */}
+                    <div>
+                      <label className="text-[10px] font-bold text-surface-500 uppercase block mb-1.5">
+                        Días de la semana
+                      </label>
+                      <div className="flex gap-1">
+                        {DIAS_LABELS.map((label, dia) => {
+                          const selected = diasEfectivos.includes(dia);
+                          const isDefault = formData.diasSemana.length === 0
+                            && dia === new Date(formData.fecha + "T12:00:00").getDay();
+                          return (
+                            <button
+                              key={dia}
+                              type="button"
+                              onClick={() => toggleDia(dia)}
+                              title={DIAS_FULL[dia]}
+                              className={cn(
+                                "flex-1 h-9 rounded-lg text-xs font-bold transition-all",
+                                selected
+                                  ? "bg-primary-600 text-white shadow-sm"
+                                  : "bg-white text-surface-500 border border-surface-200 hover:border-primary-300",
+                                isDefault && "ring-2 ring-primary-200",
+                              )}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-surface-500 mt-1.5">
+                        {formData.diasSemana.length === 0
+                          ? `Se repite los ${DIAS_FULL[new Date(formData.fecha + "T12:00:00").getDay()].toLowerCase()} (día de la fecha).`
+                          : `Se repite ${formData.diasSemana.map((d) => DIAS_FULL[d].toLowerCase()).join(", ")}.`}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-medium text-surface-500">Semanas:</label>
+                      <input
+                        type="number" min="2" max="12"
+                        value={formData.semanas}
+                        onChange={(e) => setFormData({ ...formData, semanas: Number(e.target.value) })}
+                        className="w-16 rounded-lg border border-surface-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 
               <div className="pt-2 flex justify-between">
-                <button type="button" onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-medium text-surface-500 hover:text-surface-700 transition-colors">
-                  <ChevronLeft size={16} /> Atrás
-                </button>
+                {!prefillAlumnoId ? (
+                  <button type="button" onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-medium text-surface-500 hover:text-surface-700 transition-colors">
+                    <ChevronLeft size={16} /> Atrás
+                  </button>
+                ) : <span />}
                 <button
                   type="submit"
                   disabled={isSubmitting}
