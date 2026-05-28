@@ -99,8 +99,24 @@ export async function aplicarModeloCobroCierre(
     case "por_clase":
       return crearCargoClase(supabase, maestraId, input, input.monto, 0, modelo);
 
-    case "bolsa_creditos":
-      return crearCargoClase(supabase, maestraId, input, input.monto, 1, modelo);
+    case "bolsa_creditos": {
+      const result = await crearCargoClase(supabase, maestraId, input, input.monto, 1, modelo);
+      // Imputar el cargo contra los cobros 'pack' libres del alumno.
+      // Sin esto, el cargo queda como "pendiente" y el cobro del pack
+      // como "saldo a favor", incluso cuando conceptualmente la clase
+      // está pagada por adelantado. Idempotente: skip si ya tiene
+      // imputaciones (re-ejecución del cierre).
+      if (result.cargo_id && input.monto > 0) {
+        await imputarCargoContraPacks(
+          supabase,
+          maestraId,
+          input.alumno_id,
+          result.cargo_id,
+          input.monto,
+        );
+      }
+      return result;
+    }
 
     case "abono_mensual":
       return aplicarAbonoMensual(
@@ -183,6 +199,71 @@ async function insertarCargoClase(
 
   if (error) throw new Error("Error al generar cargo: " + error.message);
   return (data as { id: string }).id;
+}
+
+/**
+ * Imputa un cargo de clase (modelo bolsa_creditos) contra los cobros
+ * con origen='pack' del alumno que tengan saldo libre, FIFO por fecha.
+ *
+ * Sin esta imputación, el cargo queda como "pendiente" en la UI y el
+ * pack como "saldo a favor", aunque la clase ya está pagada por
+ * adelantado.
+ *
+ * Si no hay packs con saldo libre (pack agotado), no hace nada: el
+ * cargo queda pendiente como deuda monetaria real — eso es correcto.
+ *
+ * Idempotente: si el cargo ya tiene imputaciones (re-ejecución del
+ * cierre), descuenta de lo que falta cubrir y no duplica.
+ */
+async function imputarCargoContraPacks(
+  supabase: SupabaseClient,
+  maestraId: string,
+  alumnoId: string,
+  cargoId: string,
+  montoCargo: number,
+): Promise<void> {
+  // Cuánto ya tiene imputado este cargo (idempotencia).
+  const { data: yaImputado } = await supabase
+    .from("imputaciones")
+    .select("monto_imputado")
+    .eq("cargo_id", cargoId);
+  const totalYaImputado = (yaImputado ?? []).reduce(
+    (acc, i) => acc + Number((i as { monto_imputado: number }).monto_imputado),
+    0,
+  );
+  let restante = montoCargo - totalYaImputado;
+  if (restante <= 0) return;
+
+  // Cobros pack con saldo libre del alumno, ordenados FIFO.
+  const { data: packs } = await supabase
+    .from("cobros_libres_activos")
+    .select("id, monto_libre")
+    .eq("maestra_id", maestraId)
+    .eq("alumno_id", alumnoId)
+    .eq("origen", "pack")
+    .order("fecha", { ascending: true });
+
+  if (!packs || packs.length === 0) return;
+
+  const filas: { cobro_id: string; cargo_id: string; monto_imputado: number }[] = [];
+  for (const p of packs) {
+    if (restante <= 0) break;
+    const disponible = Number((p as { monto_libre: number }).monto_libre);
+    const aImputar = Math.min(disponible, restante);
+    if (aImputar > 0) {
+      filas.push({
+        cobro_id: (p as { id: string }).id,
+        cargo_id: cargoId,
+        monto_imputado: aImputar,
+      });
+      restante -= aImputar;
+    }
+  }
+
+  if (filas.length > 0) {
+    const { error } = await supabase.from("imputaciones").insert(filas);
+    if (error) throw new Error("Error imputando cargo a pack: " + error.message);
+  }
 }
 
 /**

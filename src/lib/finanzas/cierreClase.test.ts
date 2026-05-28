@@ -48,6 +48,7 @@ function makeSupabase(schema: Schema) {
       gte() { return fluent; },
       lte() { return fluent; },
       is() { return fluent; },
+      order() { return fluent; },
       maybeSingle: async () => {
         const fn = schema.query?.[table];
         return { data: fn ? fn() : null, error: null };
