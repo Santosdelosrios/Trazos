@@ -25,23 +25,36 @@ export default async function CobranzasPage() {
   const datosPago = maestraData?.datos_pago ?? null;
   const templateRecordatorio = maestraData?.template_recordatorio ?? null;
 
-  // Pagos con datos del alumno + responsable (vista filtra soft-deleted).
-  // Embed: alumnos → familia para resolver el teléfono del responsable
-  // siguiendo la cadena familia → alumno.
-  const { data: pagos } = await supabase
+  // Pagos (cargos con estado derivado) — sin embedded join para
+  // evitar que PostgREST falle al inferir FKs desde la vista.
+  // Los datos del alumno se resuelven en una query separada y se
+  // mergen en memoria.
+  const { data: pagosRaw } = await supabase
     .from("pagos_activos")
-    .select(`
-      *,
-      alumnos!inner (
-        nombre, apellido,
-        responsable_nombre, responsable_telefono,
-        familia:familias!alumnos_familia_id_fkey (
-          responsable_nombre, responsable_telefono
-        )
-      )
-    `)
+    .select("*")
     .eq("maestra_id", user.id)
     .order("created_at", { ascending: false });
+
+  // Alumnos con su familia (para resolver responsable + teléfono)
+  const { data: alumnosRaw } = await supabase
+    .from("alumnos")
+    .select(`
+      id, nombre, apellido,
+      responsable_nombre, responsable_telefono,
+      familia:familias!alumnos_familia_id_fkey (
+        responsable_nombre, responsable_telefono
+      )
+    `)
+    .eq("maestra_id", user.id);
+
+  // Merge: agregar los datos del alumno a cada pago
+  const alumnosMap = new Map(
+    (alumnosRaw ?? []).map((a) => [a.id, a])
+  );
+  const pagos = (pagosRaw ?? []).map((p) => ({
+    ...p,
+    alumnos: alumnosMap.get(p.alumno_id) ?? undefined,
+  }));
 
   // Alumnos para el form (con modelo de cobro)
   const { data: alumnos } = await supabase
@@ -75,7 +88,7 @@ export default async function CobranzasPage() {
       <FormNuevoPago alumnos={alumnos ?? []} tarifaActual={tarifaActual} />
 
       <TablaCobranzas
-        pagos={pagos ?? []}
+        pagos={pagos}
         nombreMaestra={nombreMaestra}
         templateRecordatorio={templateRecordatorio}
         datosPago={datosPago}
