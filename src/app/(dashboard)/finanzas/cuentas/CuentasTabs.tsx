@@ -203,11 +203,13 @@ function CardAlumno({
             debe ? "text-warning-600" : aFavor ? "text-success-600" : "text-surface-400"
           }`}>
             {alumno.modelo_cobro === "bolsa_creditos"
-              ? `${Math.round(saldo)} créd.`
+              ? `${Math.round(alumno.creditos_actual)} créd.`
               : formatearMonto(Math.abs(saldo))}
           </p>
           <p className="text-[10px] font-bold uppercase tracking-wider text-surface-400 mt-0.5">
-            {debe ? "Te debe" : aFavor ? "A favor" : "Al día"}
+            {debe ? "Te debe" : aFavor ? "A favor" : alumno.modelo_cobro === "bolsa_creditos"
+              ? (alumno.creditos_actual > 0 ? "Disponibles" : alumno.creditos_actual < 0 ? "Adeudadas" : "Pack agotado")
+              : "Al día"}
           </p>
         </div>
       </div>
@@ -371,6 +373,13 @@ function CardFamilia({
     tarifa_efectiva: m.tarifa_efectiva,
   }));
 
+  // Lookup de creditos_actual por alumno_id. La RPC detalle_familia
+  // todavía no devuelve este campo; lo resolvemos desde la prop
+  // miembros (que sí lo tiene) para bolsa_creditos.
+  const creditosPorAlumno = new Map<string, number>(
+    miembros.map((m) => [m.id, m.creditos_actual]),
+  );
+
   return (
     <div className={`rounded-2xl border bg-white shadow-sm overflow-hidden ${
       debe ? "border-warning-200" : "border-surface-200"
@@ -445,7 +454,7 @@ function CardFamilia({
                       lineaDebe ? "text-warning-600" : esDeuda && l.saldo_actual < 0 ? "text-success-600" : "text-surface-500"
                     }`}>
                       {l.modelo_cobro === "bolsa_creditos"
-                        ? `${Math.round(l.saldo_actual)} créd.`
+                        ? `${Math.round(creditosPorAlumno.get(l.alumno_id) ?? 0)} créd.`
                         : formatearMonto(Math.abs(l.saldo_actual))}
                     </span>
                   </Link>

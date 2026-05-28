@@ -134,19 +134,33 @@ export default async function AlumnosPage() {
                               {(() => {
                                 const saldo = alumno.saldo_pendiente || 0;
                                 const modelo = alumno.modelo_cobro || "por_clase";
+                                // Para bolsa_creditos, el indicador relevante es
+                                // el contador de créditos (clases), no el saldo
+                                // monetario (que ahora siempre está en plata).
+                                // Antes del refactor cargos/cobros, saldo_actual
+                                // representaba créditos para este modelo — eso
+                                // ya no es así, ahora vive en creditos_actual.
+                                const creditos = Number(alumno.creditos_actual) || 0;
 
                                 if (modelo === "bolsa_creditos") {
-                                  if (saldo > 0) {
+                                  if (creditos > 0) {
                                     return (
                                       <span className="inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
-                                        {saldo} {saldo === 1 ? "clase disponible" : "clases disponibles"}
+                                        {creditos} {creditos === 1 ? "clase disponible" : "clases disponibles"}
                                       </span>
                                     );
-                                  } else if (saldo < 0) {
-                                    const absSaldo = Math.abs(saldo);
+                                  } else if (creditos < 0) {
+                                    const absCred = Math.abs(creditos);
                                     return (
                                       <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-800 border border-red-200">
-                                        {absSaldo} {absSaldo === 1 ? "clase adeudada" : "clases adeudadas"}
+                                        {absCred} {absCred === 1 ? "clase adeudada" : "clases adeudadas"}
+                                      </span>
+                                    );
+                                  } else if (saldo > 0) {
+                                    // Pack agotado y empezó a deber plata
+                                    return (
+                                      <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-bold text-red-800 border border-red-200">
+                                        Pack agotado · debe ${saldo.toLocaleString("es-AR")}
                                       </span>
                                     );
                                   } else {
