@@ -80,7 +80,7 @@ export async function eliminarPlanificacion(id: string) {
   revalidatePath("/agenda");
 }
 
-export async function completarPlanificacion(id: string) {
+export async function completarPlanificacion(id: string, claseId?: string) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -88,9 +88,15 @@ export async function completarPlanificacion(id: string) {
 
   if (!user) throw new Error("No autenticado");
 
+  // Linkear agenda.clase_id si vino. Sin esto, proyeccion_mes no
+  // puede correlacionar la agenda con su cargo y la cuenta como
+  // "por cobrar" aunque ya esté pagada.
+  const patch: { estado: "completada"; clase_id?: string } = { estado: "completada" };
+  if (claseId) patch.clase_id = claseId;
+
   const { error } = await supabase
     .from("agenda")
-    .update({ estado: "completada" })
+    .update(patch)
     .eq("id", id)
     .eq("maestra_id", user.id);
 
