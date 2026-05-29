@@ -32,7 +32,7 @@ export default async function AlumnosPage() {
     getPlan(supabase, user.id),
     supabase
       .from("tarifas")
-      .select("valor_hora")
+      .select("valor_hora, tipo")
       .eq("maestra_id", user.id)
       .eq("activa", true)
       .order("vigente_desde", { ascending: false })
@@ -41,6 +41,7 @@ export default async function AlumnosPage() {
   ]);
 
   const tarifaActual = (tarifaData as { valor_hora: number } | null)?.valor_hora ?? null;
+  const tipoTarifa = ((tarifaData as { tipo?: "por_hora" | "por_clase" } | null)?.tipo) ?? "por_hora";
 
   if (error) {
     console.error("Error fetching alumnos:", error);
@@ -106,7 +107,7 @@ export default async function AlumnosPage() {
                 </p>
               </div>
             )}
-            <NuevoAlumnoForm atLimit={atLimit} tarifaActual={tarifaActual} />
+            <NuevoAlumnoForm atLimit={atLimit} tarifaActual={tarifaActual} tipoTarifa={tipoTarifa} />
           </div>
         </div>
 

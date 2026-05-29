@@ -17,6 +17,7 @@ export default function NuevaClaseClient({
   initialDuracion,
   sugerencias,
   initialTarifa,
+  tipoTarifa = "por_hora",
 }: {
   alumnos: AlumnoBasico[];
   initialAlumnoId?: string;
@@ -25,6 +26,7 @@ export default function NuevaClaseClient({
   initialDuracion?: number;
   sugerencias?: string[];
   initialTarifa?: number | null;
+  tipoTarifa?: "por_hora" | "por_clase";
 }) {
   const [step, setStep] = useState(1);
   const [ejercicios, setEjercicios] = useState<EjercicioGenerado[]>([]);
@@ -194,7 +196,11 @@ export default function NuevaClaseClient({
         try {
           const tarifaAlumno = alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? 0;
           const duracionFinal = initialDuracion ?? 1;
-          const montoCalculado = tarifaAlumno * duracionFinal;
+          // Si la tarifa es 'por_clase', el monto es fijo (no multiplica
+          // por duración). Por defecto 'por_hora' = tarifa × duración.
+          const montoCalculado = tipoTarifa === "por_clase"
+            ? Number(tarifaAlumno)
+            : Number(tarifaAlumno) * duracionFinal;
 
           const { registrarCobroClase } = await import("./actions");
           await registrarCobroClase({
@@ -302,9 +308,11 @@ export default function NuevaClaseClient({
           const alumnoSeleccionado = alumnos.find((a) => a.id === selectedAlumnoId);
           const tarifaHora = alumnoSeleccionado?.tarifa_override ?? initialTarifa ?? 0;
           const duracionInicial = initialDuracion ?? 1;
-          // initialMonto = tarifa × duración (no solo la tarifa, que es por hora).
-          // Sin esto, clases de 2h se mostraban con el mismo monto que clases de 1h.
-          const montoInicial = tarifaHora > 0 ? tarifaHora * duracionInicial : undefined;
+          // initialMonto: 'por_hora' → tarifa × duración. 'por_clase' →
+          // tarifa fija (la duración no afecta).
+          const montoInicial = tarifaHora > 0
+            ? (tipoTarifa === "por_clase" ? Number(tarifaHora) : Number(tarifaHora) * duracionInicial)
+            : undefined;
           return (
             <PasoResumen
               isLoading={isGeneratingHito}
@@ -316,6 +324,7 @@ export default function NuevaClaseClient({
               initialMonto={montoInicial}
               initialDuracion={duracionInicial}
               tarifaHora={tarifaHora || undefined}
+              tipoTarifa={tipoTarifa}
               onRegistrarCobro={async (monto, duracion, estado) => {
                 if (claseIdGuardada && selectedAlumnoId) {
                   const { registrarCobroClase } = await import("./actions");

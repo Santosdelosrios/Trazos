@@ -286,6 +286,7 @@ export const GuardarTarifaSchema = z.object({
     .number()
     .positive("La tarifa debe ser mayor a 0.")
     .max(10_000_000, "Tarifa excesivamente alta."),
+  tipo: z.enum(["por_hora", "por_clase"]).optional().default("por_hora"),
 });
 
 export const MedioPagoSchema = z.enum([

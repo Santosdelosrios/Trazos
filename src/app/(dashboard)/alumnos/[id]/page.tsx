@@ -82,7 +82,7 @@ export default async function AlumnoPerfilPage({
     // 4. Tarifa global vigente
     supabase
       .from("tarifas")
-      .select("valor_hora")
+      .select("valor_hora, tipo")
       .eq("maestra_id", user.id)
       .eq("activa", true)
       .order("vigente_desde", { ascending: false })
@@ -98,6 +98,7 @@ export default async function AlumnoPerfilPage({
   ]);
 
   const tarifaGlobal = (tarifaGlobalRaw as { valor_hora: number } | null)?.valor_hora ?? null;
+  const tipoTarifaGlobal = ((tarifaGlobalRaw as { tipo?: "por_hora" | "por_clase" } | null)?.tipo) ?? "por_hora";
 
   if (alumnoError || !alumno) {
     redirect("/alumnos");
@@ -233,6 +234,7 @@ export default async function AlumnoPerfilPage({
             <AgendarClaseButton
               alumno={{ id: alumno.id, nombre: alumno.nombre, apellido: alumno.apellido }}
               tarifaActual={tarifaGlobal}
+              tipoTarifa={tipoTarifaGlobal}
             />
             <Link
               href={`/clases/nueva?alumnoId=${alumno.id}`}

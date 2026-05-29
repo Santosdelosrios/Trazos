@@ -60,7 +60,7 @@ export default async function AgendaPage() {
     // Tarifa activa
     supabase
       .from("tarifas")
-      .select("valor_hora")
+      .select("valor_hora, tipo")
       .eq("maestra_id", user.id)
       .eq("activa", true)
       .order("vigente_desde", { ascending: false })
@@ -106,6 +106,7 @@ export default async function AgendaPage() {
       initialAgenda={(agenda as AgendaItem[]) || []}
       alumnos={alumnos || []}
       tarifaActual={tarifaData?.valor_hora || null}
+      tipoTarifa={(tarifaData?.tipo as "por_hora" | "por_clase" | undefined) ?? "por_hora"}
       clasesCerradas={clasesCerradas}
       plan={(maestraData?.plan as "free" | "premium") || "free"}
       calendarToken={maestraData?.calendar_token || null}

@@ -29,6 +29,7 @@ interface AgendaClientProps {
   initialAgenda: AgendaItem[];
   alumnos: { id: string; nombre: string; apellido: string }[];
   tarifaActual: number | null;
+  tipoTarifa?: "por_hora" | "por_clase";
   clasesCerradas: ClaseCerrada[];
   plan?: "free" | "premium";
   calendarToken?: string | null;
@@ -48,7 +49,7 @@ const EditarClaseModal = dynamic(() => import("./modals/EditarClaseModal"), { ss
 const PrepararClaseModal = dynamic(() => import("./modals/PrepararClaseModal"), { ssr: false });
 
 // --- Main Component ---
-export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
+export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, tipoTarifa = "por_hora", clasesCerradas, plan = "free", calendarToken }: AgendaClientProps) {
   // `today` y `currentMonday` se inicializan con una fecha epoch determinista
   // para que SSR y primer render del cliente coincidan; el `useEffect`
   // posterior los reemplaza por la fecha real una vez montado.
@@ -491,6 +492,7 @@ export default function AgendaClient({ initialAgenda, alumnos, tarifaActual, cla
           onClose={() => { setModalOpen(false); setPrefillDate(undefined); }}
           alumnos={alumnos}
           tarifaActual={tarifaActual}
+          tipoTarifa={tipoTarifa}
           prefillDate={prefillDate}
           feriados={feriados}
         />

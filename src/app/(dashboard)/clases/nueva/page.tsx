@@ -62,7 +62,7 @@ export default async function NuevaClasePage({
     // Active global tarifa
     supabase
       .from("tarifas")
-      .select("valor_hora")
+      .select("valor_hora, tipo")
       .eq("maestra_id", user.id)
       .eq("activa", true)
       .order("vigente_desde", { ascending: false })
@@ -92,13 +92,14 @@ export default async function NuevaClasePage({
   const agendaData = agendaResult?.data;
 
   return (
-    <NuevaClaseClient 
-      alumnos={(alumnos as AlumnoBasico[]) || []} 
+    <NuevaClaseClient
+      alumnos={(alumnos as AlumnoBasico[]) || []}
       initialAlumnoId={alumnoId}
       initialAgendaId={agendaId}
       initialTema={tema}
       initialTarifa={agendaData?.tarifa_esperada ?? tarifaData?.[0]?.valor_hora ?? null}
       initialDuracion={agendaData?.duracion_estimada}
+      tipoTarifa={(tarifaData?.[0]?.tipo as "por_hora" | "por_clase" | undefined) ?? "por_hora"}
       sugerencias={sugerencias.length > 0 ? sugerencias : undefined}
     />
   );
