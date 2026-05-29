@@ -41,7 +41,12 @@ export default async function DetalleClasePage({
         tema,
         fecha,
         duracion_real,
-        maestra_id
+        maestra_id,
+        objetivos,
+        recordatorios,
+        notas_vivo,
+        resumen_realizado,
+        plan_proxima
       ),
       alumnos!inner (
         id,
@@ -169,6 +174,107 @@ export default async function DetalleClasePage({
           )}
         </section>
       </div>
+
+      {/* Bitácora pedagógica (notas en vivo, objetivos, resumen, plan próxima) */}
+      {(() => {
+        const objetivos = (clase.objetivos as string[] | null) ?? [];
+        const recordatorios = (clase.recordatorios as Array<{ id: string; texto: string; completado: boolean }> | null) ?? [];
+        const notasVivo = (clase.notas_vivo as string | null) ?? "";
+        const resumenReal = (clase.resumen_realizado as string | null) ?? "";
+        const planProxima = (clase.plan_proxima as string | null) ?? "";
+        const tieneAlgo =
+          objetivos.length > 0 ||
+          recordatorios.length > 0 ||
+          notasVivo.trim() !== "" ||
+          resumenReal.trim() !== "" ||
+          planProxima.trim() !== "";
+        if (!tieneAlgo) return null;
+        return (
+          <section className="rounded-2xl bg-white p-6 shadow-sm border border-surface-200">
+            <h2 className="text-lg font-bold text-surface-900 mb-5 flex items-center gap-2">
+              <span>📓</span> Bitácora pedagógica
+            </h2>
+            <div className="space-y-5">
+              {objetivos.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500 mb-2">
+                    Objetivos planeados
+                  </p>
+                  <ul className="space-y-1 pl-1">
+                    {objetivos.map((obj, i) => (
+                      <li key={i} className="text-sm text-surface-700 flex items-start gap-2">
+                        <span className="text-primary-500 mt-0.5">•</span>
+                        <span>{obj}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {recordatorios.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500 mb-2">
+                    Recordatorios{" "}
+                    <span className="font-normal text-surface-400">
+                      ({recordatorios.filter((r) => r.completado).length}/{recordatorios.length} completados)
+                    </span>
+                  </p>
+                  <ul className="space-y-1.5">
+                    {recordatorios.map((r) => (
+                      <li key={r.id} className="flex items-start gap-2 text-sm">
+                        <span className={cn(
+                          "shrink-0 mt-0.5 flex h-4 w-4 items-center justify-center rounded border",
+                          r.completado
+                            ? "bg-success-500 border-success-500 text-white"
+                            : "bg-white border-surface-300 text-transparent",
+                        )}>
+                          ✓
+                        </span>
+                        <span className={r.completado ? "line-through text-surface-400" : "text-surface-700"}>
+                          {r.texto}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {notasVivo.trim() !== "" && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500 mb-2">
+                    Notas en vivo
+                  </p>
+                  <div className="rounded-xl bg-surface-50 border border-surface-200 p-3 text-sm text-surface-700 whitespace-pre-wrap leading-relaxed">
+                    {notasVivo}
+                  </div>
+                </div>
+              )}
+
+              {resumenReal.trim() !== "" && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-surface-500 mb-2">
+                    ¿Qué hicieron en esta clase?
+                  </p>
+                  <div className="rounded-xl bg-surface-50 border border-surface-200 p-3 text-sm text-surface-700 whitespace-pre-wrap leading-relaxed">
+                    {resumenReal}
+                  </div>
+                </div>
+              )}
+
+              {planProxima.trim() !== "" && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-primary-700 mb-2">
+                    ¿Qué van a trabajar la próxima?
+                  </p>
+                  <div className="rounded-xl bg-primary-50/40 border border-primary-200 p-3 text-sm text-surface-800 whitespace-pre-wrap leading-relaxed">
+                    {planProxima}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Detalle de Preguntas */}
       {!isExpress && (
