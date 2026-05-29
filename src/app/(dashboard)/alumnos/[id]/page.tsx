@@ -65,6 +65,7 @@ export default async function AlumnoPerfilPage({
           fecha,
           resumen_realizado,
           plan_proxima,
+          notas_vivo,
           clases_temas (
             temas (
               id,
@@ -390,8 +391,14 @@ export default async function AlumnoPerfilPage({
                             </span>
                           </div>
                           {/* Bitácora pedagógica */}
-                          {(clase?.resumen_realizado || clase?.plan_proxima) && (
+                          {(clase?.resumen_realizado || clase?.plan_proxima || clase?.notas_vivo) && (
                             <div className="mt-2 space-y-1.5 rounded-lg border border-surface-100 bg-surface-50/40 px-2.5 py-2">
+                              {clase?.notas_vivo && (
+                                <p className="text-[11px] text-surface-600 leading-relaxed line-clamp-2">
+                                  <span className="font-bold text-surface-700">Notas en vivo:</span>{" "}
+                                  {clase.notas_vivo}
+                                </p>
+                              )}
                               {clase?.resumen_realizado && (
                                 <p className="text-[11px] text-surface-600 leading-relaxed">
                                   <span className="font-bold text-surface-700">Hicimos:</span>{" "}
