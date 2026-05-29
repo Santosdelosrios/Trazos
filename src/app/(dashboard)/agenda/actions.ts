@@ -437,3 +437,38 @@ export async function guardarNotasVivoAgenda(agendaId: string, texto: string) {
     throw new Error(error.message);
   }
 }
+
+/**
+ * Actualiza la planificación pedagógica (objetivos + recordatorios +
+ * tema previsto) de una agenda existente. Se llama desde
+ * OpcionesClaseModal cuando la maestra edita inline.
+ */
+export async function actualizarPlanificacionAgenda(agendaId: string, data: {
+  tema_previsto?: string;
+  objetivos?: string[];
+  recordatorios?: { id: string; texto: string; completado: boolean; created_at?: string }[];
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  const patch: {
+    tema_previsto?: string;
+    objetivos?: string[];
+    recordatorios?: { id: string; texto: string; completado: boolean; created_at?: string }[];
+  } = {};
+  if (data.tema_previsto !== undefined) patch.tema_previsto = data.tema_previsto;
+  if (data.objetivos !== undefined) patch.objetivos = data.objetivos;
+  if (data.recordatorios !== undefined) patch.recordatorios = data.recordatorios;
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase
+    .from("agenda")
+    .update(patch)
+    .eq("id", agendaId)
+    .eq("maestra_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/agenda");
+  revalidatePath("/dashboard");
+}
