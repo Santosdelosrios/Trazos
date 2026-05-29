@@ -149,6 +149,13 @@ export interface PlanClase {
   generado_at: string;
 }
 
+export interface RecordatorioClase {
+  id: string;
+  texto: string;
+  completado: boolean;
+  created_at?: string;
+}
+
 export interface AgendaItem {
   id: string;
   maestra_id: string;
@@ -162,6 +169,10 @@ export interface AgendaItem {
   duracion_estimada?: number;
   clase_id?: string | null;
   plan_clase?: PlanClase | null;
+  /** Bitácora pedagógica (migración 036). */
+  objetivos?: string[] | null;
+  recordatorios?: RecordatorioClase[] | null;
+  notas_vivo?: string | null;
   created_at: string;
   // Join fields
   alumnos?: Alumno;
