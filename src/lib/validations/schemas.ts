@@ -81,6 +81,13 @@ export const RespuestaAlumnoSchema = z.object({
 // Schemas: Agenda
 // ------------------------------------------------------------
 
+export const RecordatorioClaseSchema = z.object({
+  id: z.string(),
+  texto: z.string().min(1).max(200),
+  completado: z.boolean().default(false),
+  created_at: z.string().optional(),
+});
+
 export const PlanificarClaseSchema = z.object({
   alumno_id: z.string().uuid("ID de alumno inválido."),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato de fecha inválido."),
@@ -95,6 +102,9 @@ export const PlanificarClaseSchema = z.object({
    *  Solo se usa si repetirSemanal=true. Si vacío o ausente, repite en
    *  el mismo día de la semana de la fecha ancla (comportamiento previo). */
   diasSemana: z.array(z.number().int().min(0).max(6)).optional(),
+  /** Bitácora pedagógica (migración 036): opcionales. */
+  objetivos: z.array(z.string().min(1).max(200)).max(20).optional(),
+  recordatorios: z.array(RecordatorioClaseSchema).max(20).optional(),
 });
 
 export const ActualizarClaseSchema = z.object({

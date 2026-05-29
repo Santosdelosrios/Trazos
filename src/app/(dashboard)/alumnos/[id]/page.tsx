@@ -63,6 +63,8 @@ export default async function AlumnoPerfilPage({
           id,
           tema,
           fecha,
+          resumen_realizado,
+          plan_proxima,
           clases_temas (
             temas (
               id,
@@ -387,6 +389,23 @@ export default async function AlumnoPerfilPage({
                               {registro.total_correctas}/3 correctas
                             </span>
                           </div>
+                          {/* Bitácora pedagógica */}
+                          {(clase?.resumen_realizado || clase?.plan_proxima) && (
+                            <div className="mt-2 space-y-1.5 rounded-lg border border-surface-100 bg-surface-50/40 px-2.5 py-2">
+                              {clase?.resumen_realizado && (
+                                <p className="text-[11px] text-surface-600 leading-relaxed">
+                                  <span className="font-bold text-surface-700">Hicimos:</span>{" "}
+                                  {clase.resumen_realizado}
+                                </p>
+                              )}
+                              {clase?.plan_proxima && (
+                                <p className="text-[11px] text-surface-600 leading-relaxed">
+                                  <span className="font-bold text-primary-700">Próxima:</span>{" "}
+                                  {clase.plan_proxima}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </Link>
                     );

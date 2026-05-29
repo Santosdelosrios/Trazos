@@ -189,3 +189,36 @@ export async function registrarCobroClase(data: {
     });
   }
 }
+
+/**
+ * Guarda la bitácora pedagógica al cerrar la clase (cierre con
+ * evaluación). El plan_proxima se va a sugerir como objetivo cuando
+ * la maestra agende la siguiente clase con el mismo alumno.
+ */
+export async function guardarBitacoraClase(data: {
+  clase_id: string;
+  resumen_realizado?: string | null;
+  plan_proxima?: string | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  const patch: { resumen_realizado?: string | null; plan_proxima?: string | null } = {};
+  // Strings vacíos se guardan como null (más limpio para los filtros
+  // tipo "plan_proxima IS NOT NULL").
+  if (data.resumen_realizado !== undefined) {
+    patch.resumen_realizado = data.resumen_realizado?.trim() ? data.resumen_realizado.trim() : null;
+  }
+  if (data.plan_proxima !== undefined) {
+    patch.plan_proxima = data.plan_proxima?.trim() ? data.plan_proxima.trim() : null;
+  }
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase
+    .from("clases")
+    .update(patch)
+    .eq("id", data.clase_id)
+    .eq("maestra_id", user.id);
+  if (error) throw new Error("Error al guardar bitácora: " + error.message);
+}

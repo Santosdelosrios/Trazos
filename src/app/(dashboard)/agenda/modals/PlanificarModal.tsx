@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { planificarClase } from "../actions";
-import { CalendarDays, X, ChevronLeft, ChevronRight, RefreshCw, Info } from "lucide-react";
+import { CalendarDays, X, ChevronLeft, ChevronRight, RefreshCw, Info, Target, Bell, Plus, Trash2, History } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { Feriado } from "@/lib/utils/feriados";
 import type { Materia } from "@/lib/types/database";
 
@@ -43,7 +44,18 @@ export default function PlanificarModal({
     repetirSemanal: false,
     semanas: 4,
     diasSemana: [] as number[],  // 0=domingo, 1=lunes, ..., 6=sábado
+    objetivos: [] as string[],
+    recordatorios: [] as { id: string; texto: string; completado: boolean }[],
   });
+  // Inputs locales para agregar objetivos/recordatorios uno por uno.
+  const [nuevoObjetivo, setNuevoObjetivo] = useState("");
+  const [nuevoRecordatorio, setNuevoRecordatorio] = useState("");
+  // Sugerencia de continuidad: plan_proxima de la última clase del
+  // alumno seleccionado. Se ofrece al primer cambio de alumno como
+  // "agregar como objetivo" para no romper si la maestra ya empezó
+  // a escribir objetivos propios.
+  const [sugerenciaPlan, setSugerenciaPlan] = useState<string | null>(null);
+  const [sugerenciaAceptada, setSugerenciaAceptada] = useState(false);
 
   // Reset interno cuando cambian las props de prefill (modal reabierto
   // con distinto contexto, por ej. distinto alumno).
@@ -58,6 +70,35 @@ export default function PlanificarModal({
     }
   }, [open, prefillAlumnoId, prefillDate]);
 
+  // Cuando cambia el alumno seleccionado, traer el plan_proxima de su
+  // última clase para sugerirlo como objetivo (continuidad pedagógica).
+  useEffect(() => {
+    const alumnoId = formData.alumno_id;
+    if (!open || !alumnoId) {
+      setSugerenciaPlan(null);
+      setSugerenciaAceptada(false);
+      return;
+    }
+    setSugerenciaAceptada(false);
+    const supa = createClient();
+    (async () => {
+      const { data } = await supa
+        .from("clases")
+        .select("plan_proxima, clase_alumnos!inner(alumno_id)")
+        .eq("clase_alumnos.alumno_id", alumnoId)
+        .not("plan_proxima", "is", null)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const row = data as { plan_proxima: string } | null;
+      if (row?.plan_proxima && row.plan_proxima.trim() !== "") {
+        setSugerenciaPlan(row.plan_proxima);
+      } else {
+        setSugerenciaPlan(null);
+      }
+    })().catch(() => setSugerenciaPlan(null));
+  }, [open, formData.alumno_id]);
+
   const resetForm = () => {
     setStep(prefillAlumnoId ? 2 : 1);
     setFormData({
@@ -71,6 +112,48 @@ export default function PlanificarModal({
       repetirSemanal: false,
       semanas: 4,
       diasSemana: [],
+      objetivos: [],
+      recordatorios: [],
+    });
+    setNuevoObjetivo("");
+    setNuevoRecordatorio("");
+  };
+
+  // Helpers para gestión inline de objetivos / recordatorios.
+  const agregarObjetivo = () => {
+    const t = nuevoObjetivo.trim();
+    if (!t || formData.objetivos.length >= 20) return;
+    setFormData({ ...formData, objetivos: [...formData.objetivos, t] });
+    setNuevoObjetivo("");
+  };
+  const quitarObjetivo = (idx: number) => {
+    setFormData({
+      ...formData,
+      objetivos: formData.objetivos.filter((_, i) => i !== idx),
+    });
+  };
+  const agregarRecordatorio = () => {
+    const t = nuevoRecordatorio.trim();
+    if (!t || formData.recordatorios.length >= 20) return;
+    setFormData({
+      ...formData,
+      recordatorios: [
+        ...formData.recordatorios,
+        {
+          // ID estable client-side; server lo respeta para luego matchearlo
+          // cuando se marca como completado desde el widget En Vivo.
+          id: `r_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          texto: t,
+          completado: false,
+        },
+      ],
+    });
+    setNuevoRecordatorio("");
+  };
+  const quitarRecordatorio = (id: string) => {
+    setFormData({
+      ...formData,
+      recordatorios: formData.recordatorios.filter((r) => r.id !== id),
     });
   };
 
@@ -364,6 +447,154 @@ export default function PlanificarModal({
                     </div>
                   </>
                 )}
+              </div>
+
+              {/* Bitácora pedagógica: objetivos y recordatorios */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-3 space-y-4">
+                <p className="text-xs font-bold text-surface-700">Bitácora pedagógica <span className="font-normal text-surface-400">(opcional)</span></p>
+
+                {/* Objetivos */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Target size={14} className="text-primary-600" />
+                    <label className="text-[11px] font-bold uppercase text-surface-600">
+                      Objetivos de la clase
+                    </label>
+                  </div>
+                  {sugerenciaPlan && !sugerenciaAceptada && formData.objetivos.length === 0 && (
+                    <div className="rounded-lg border border-primary-200 bg-primary-50/60 p-2.5 space-y-1.5">
+                      <div className="flex items-start gap-1.5">
+                        <History size={11} className="text-primary-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold uppercase text-primary-700">
+                            Sugerido de la última clase
+                          </p>
+                          <p className="text-xs text-surface-700 mt-0.5">{sugerenciaPlan}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setSugerenciaAceptada(true)}
+                          className="text-[10px] font-bold text-surface-500 hover:text-surface-700 px-2 py-1"
+                        >
+                          Descartar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              objetivos: [...formData.objetivos, sugerenciaPlan],
+                            });
+                            setSugerenciaAceptada(true);
+                          }}
+                          className="text-[10px] font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-md px-2 py-1"
+                        >
+                          Usar como objetivo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {formData.objetivos.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {formData.objetivos.map((obj, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white border border-surface-200 px-3 py-1.5 text-xs"
+                        >
+                          <span className="flex-1 text-surface-700">{obj}</span>
+                          <button
+                            type="button"
+                            onClick={() => quitarObjetivo(idx)}
+                            className="text-surface-400 hover:text-danger-500"
+                            aria-label="Quitar objetivo"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ej: Repasar suma de fracciones"
+                      value={nuevoObjetivo}
+                      maxLength={200}
+                      onChange={(e) => setNuevoObjetivo(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          agregarObjetivo();
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={agregarObjetivo}
+                      disabled={!nuevoObjetivo.trim() || formData.objetivos.length >= 20}
+                      className="flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-40"
+                    >
+                      <Plus size={12} /> Agregar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recordatorios */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Bell size={14} className="text-warning-600" />
+                    <label className="text-[11px] font-bold uppercase text-surface-600">
+                      Recordatorios
+                    </label>
+                  </div>
+                  {formData.recordatorios.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {formData.recordatorios.map((r) => (
+                        <li
+                          key={r.id}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white border border-surface-200 px-3 py-1.5 text-xs"
+                        >
+                          <span className="flex-1 text-surface-700">{r.texto}</span>
+                          <button
+                            type="button"
+                            onClick={() => quitarRecordatorio(r.id)}
+                            className="text-surface-400 hover:text-danger-500"
+                            aria-label="Quitar recordatorio"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ej: Pedir el cuaderno nuevo"
+                      value={nuevoRecordatorio}
+                      maxLength={200}
+                      onChange={(e) => setNuevoRecordatorio(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          agregarRecordatorio();
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={agregarRecordatorio}
+                      disabled={!nuevoRecordatorio.trim() || formData.recordatorios.length >= 20}
+                      className="flex items-center gap-1 rounded-lg bg-warning-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-warning-700 disabled:opacity-40"
+                    >
+                      <Plus size={12} /> Agregar
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 flex justify-between">
