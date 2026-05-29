@@ -130,6 +130,7 @@ export const getAgendaPendiente = cache(async (maestraId: string) => {
     .from("agenda")
     .select(`
       id, fecha, hora, tema_previsto, materia, alumno_id, duracion_estimada, estado,
+      objetivos, recordatorios, notas_vivo,
       alumnos!inner(id, nombre, apellido)
     `)
     .eq("maestra_id", maestraId)

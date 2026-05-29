@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { HitoAprendizaje, EjercicioGenerado, EjercicioResultado, ModeloCobro } from "@/lib/types/database";
 import { MODELO_COBRO_CONFIG } from "@/lib/types/database";
-import { Target, Bot, Wallet, CheckCircle2, Sparkles, Frown, Meh, Smile, Star, PenTool } from "lucide-react";
+import { Target, Bot, Wallet, CheckCircle2, Sparkles, Frown, Meh, Smile, Star, PenTool, NotebookPen, ArrowRight } from "lucide-react";
 
 interface PasoResumenProps {
   isLoading: boolean;
@@ -20,6 +20,9 @@ interface PasoResumenProps {
    *  duración real de la clase, salvo que haya editado el monto a mano. */
   tarifaHora?: number;
   onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => Promise<void>;
+  /** Guarda resumen_realizado + plan_proxima en la clase. Se llama
+   *  con cada blur del textarea (autosave manual). */
+  onGuardarBitacora?: (resumen: string, planProxima: string) => Promise<void>;
 }
 
 export default function PasoResumen({
@@ -33,6 +36,7 @@ export default function PasoResumen({
   initialDuracion,
   tarifaHora,
   onRegistrarCobro,
+  onGuardarBitacora,
 }: PasoResumenProps) {
   const [monto, setMonto] = useState<string>(initialMonto?.toString() || "");
   const [duracionReal, setDuracionReal] = useState<number>(initialDuracion || 1);
@@ -40,6 +44,22 @@ export default function PasoResumen({
   // cambiar la duración. Se respeta su decisión.
   const [montoEditadoManualmente, setMontoEditadoManualmente] = useState(false);
   const [cobroStatus, setCobroStatus] = useState<"none" | "saving" | "saved">("none");
+
+  // Bitácora pedagógica al cerrar
+  const [resumenReal, setResumenReal] = useState("");
+  const [planProxima, setPlanProxima] = useState("");
+  const [bitacoraStatus, setBitacoraStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const handleGuardarBitacora = async () => {
+    if (!onGuardarBitacora) return;
+    setBitacoraStatus("saving");
+    try {
+      await onGuardarBitacora(resumenReal, planProxima);
+      setBitacoraStatus("saved");
+      setTimeout(() => setBitacoraStatus("idle"), 1500);
+    } catch {
+      setBitacoraStatus("idle");
+    }
+  };
 
   function handleDuracionChange(nuevaDuracion: number) {
     setDuracionReal(nuevaDuracion);
@@ -276,6 +296,62 @@ export default function PasoResumen({
               </p>
             </div>
           </div>
+        </section>
+      )}
+
+      {/* ========================================
+          BITÁCORA PEDAGÓGICA
+          ======================================== */}
+      {onGuardarBitacora && (
+        <section className="rounded-2xl border border-surface-200 bg-white p-8 shadow-sm space-y-5">
+          <div className="flex items-center gap-2">
+            <NotebookPen size={20} className="text-primary-600" />
+            <h3 className="font-semibold text-surface-900">Bitácora pedagógica</h3>
+            <span className="text-xs font-normal text-surface-400">(opcional)</span>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-surface-700 uppercase block">
+              ¿Qué hicieron en esta clase?
+            </label>
+            <textarea
+              value={resumenReal}
+              onChange={(e) => setResumenReal(e.target.value)}
+              onBlur={handleGuardarBitacora}
+              placeholder="Ej: Repasamos suma de fracciones con denominador igual y avanzamos al caso de denominadores distintos."
+              rows={3}
+              maxLength={2000}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 resize-y"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-surface-700 uppercase block flex items-center gap-1.5">
+              <ArrowRight size={12} className="text-primary-600" />
+              ¿Qué van a trabajar la próxima?
+            </label>
+            <textarea
+              value={planProxima}
+              onChange={(e) => setPlanProxima(e.target.value)}
+              onBlur={handleGuardarBitacora}
+              placeholder="Ej: Avanzar a multiplicación de fracciones. Practicar más ejercicios con denominadores distintos."
+              rows={3}
+              maxLength={2000}
+              className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400 resize-y"
+            />
+            <p className="text-[10px] text-surface-400">
+              Esto se va a sugerir como objetivo cuando agendes la próxima clase con este alumno.
+            </p>
+          </div>
+
+          {bitacoraStatus === "saved" && (
+            <div className="flex items-center gap-2 text-xs text-success-600 font-medium">
+              <CheckCircle2 size={14} /> Guardado
+            </div>
+          )}
+          {bitacoraStatus === "saving" && (
+            <div className="text-xs text-surface-400 italic">Guardando…</div>
+          )}
         </section>
       )}
 

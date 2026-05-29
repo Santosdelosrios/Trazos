@@ -328,6 +328,15 @@ export default function NuevaClaseClient({
                   });
                 }
               }}
+              onGuardarBitacora={async (resumen, plan) => {
+                if (!claseIdGuardada) return;
+                const { guardarBitacoraClase } = await import("./actions");
+                await guardarBitacoraClase({
+                  clase_id: claseIdGuardada,
+                  resumen_realizado: resumen,
+                  plan_proxima: plan,
+                });
+              }}
             />
           );
         })()}
