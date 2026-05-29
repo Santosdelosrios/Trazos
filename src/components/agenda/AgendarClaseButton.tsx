@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   alumno: { id: string; nombre: string; apellido: string };
   tarifaActual: number | null;
+  tipoTarifa?: "por_hora" | "por_clase";
   className?: string;
   variant?: "primary" | "secondary";
 }
@@ -24,6 +25,7 @@ interface Props {
 export default function AgendarClaseButton({
   alumno,
   tarifaActual,
+  tipoTarifa = "por_hora",
   className,
   variant = "secondary",
 }: Props) {
@@ -76,6 +78,7 @@ export default function AgendarClaseButton({
         onClose={() => setOpen(false)}
         alumnos={[alumno]}
         tarifaActual={tarifaActual}
+        tipoTarifa={tipoTarifa}
         prefillAlumnoId={alumno.id}
         feriados={feriados}
       />

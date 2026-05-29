@@ -23,7 +23,7 @@ export default async function TarifasPage() {
   ] = await Promise.all([
     supabase
       .from("tarifas")
-      .select("valor_hora, vigente_desde")
+      .select("valor_hora, vigente_desde, tipo")
       .eq("maestra_id", user.id)
       .eq("activa", true)
       .order("vigente_desde", { ascending: false })
@@ -37,6 +37,7 @@ export default async function TarifasPage() {
 
   const tarifaActual = tarifaData?.valor_hora ?? null;
   const vigenteDesde = tarifaData?.vigente_desde ?? null;
+  const tipoActual = (tarifaData?.tipo as "por_hora" | "por_clase" | undefined) ?? "por_hora";
 
   // Calculamos la inflación acumulada solo si hay tarifa y fecha
   let inflacionAcumulada = 0;
@@ -68,7 +69,7 @@ export default async function TarifasPage() {
         esPremium={plan === "premium"}
       />
 
-      <CalculadoraTarifa tarifaActual={tarifaActual} />
+      <CalculadoraTarifa tarifaActual={tarifaActual} tipoActual={tipoActual} />
     </div>
   );
 }

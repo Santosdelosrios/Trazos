@@ -40,7 +40,11 @@ function revalidarFinanzas() {
 // TARIFAS (sin cambios — tarifas no se refactoriza)
 // ============================================================
 
-export async function guardarTarifa(data: { valor_hora: number; notas?: string }) {
+export async function guardarTarifa(data: {
+  valor_hora: number;
+  notas?: string;
+  tipo?: "por_hora" | "por_clase";
+}) {
   const parsed = GuardarTarifaSchema.safeParse(data);
   if (!parsed.success) {
     throw new Error(parsed.error.issues.map((i) => i.message).join(". "));
@@ -59,6 +63,7 @@ export async function guardarTarifa(data: { valor_hora: number; notas?: string }
   const { error } = await supabase.from("tarifas").insert({
     maestra_id: user.id,
     valor_hora: parsed.data.valor_hora,
+    tipo: parsed.data.tipo,
     vigente_desde: new Date().toISOString().split("T")[0],
     activa: true,
     notas: data.notas || null,

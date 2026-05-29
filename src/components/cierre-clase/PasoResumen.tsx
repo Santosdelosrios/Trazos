@@ -19,6 +19,9 @@ interface PasoResumenProps {
    *  para recalcular el monto automáticamente cuando la maestra cambia la
    *  duración real de la clase, salvo que haya editado el monto a mano. */
   tarifaHora?: number;
+  /** Tipo de tarifa global: 'por_hora' recalcula tarifa × duración;
+   *  'por_clase' deja el monto fijo aunque cambie la duración. */
+  tipoTarifa?: "por_hora" | "por_clase";
   onRegistrarCobro?: (monto: number, duracion: number, estado: "pagado" | "pendiente") => Promise<void>;
   /** Guarda resumen_realizado + plan_proxima en la clase. Se llama
    *  con cada blur del textarea (autosave manual). */
@@ -35,6 +38,7 @@ export default function PasoResumen({
   initialMonto,
   initialDuracion,
   tarifaHora,
+  tipoTarifa = "por_hora",
   onRegistrarCobro,
   onGuardarBitacora,
 }: PasoResumenProps) {
@@ -64,7 +68,12 @@ export default function PasoResumen({
   function handleDuracionChange(nuevaDuracion: number) {
     setDuracionReal(nuevaDuracion);
     if (!montoEditadoManualmente && tarifaHora && tarifaHora > 0) {
-      setMonto(String(Math.round(tarifaHora * nuevaDuracion)));
+      // Si la tarifa es 'por_clase', el monto no depende de la duración
+      // — la maestra cobra lo mismo sin importar cuánto duró la clase.
+      const nuevo = tipoTarifa === "por_clase"
+        ? tarifaHora
+        : tarifaHora * nuevaDuracion;
+      setMonto(String(Math.round(nuevo)));
     }
   }
 
@@ -228,7 +237,7 @@ export default function PasoResumen({
                     step="100"
                     value={monto}
                     onChange={(e) => handleMontoChange(e.target.value)}
-                    placeholder={tarifaHora ? `${Math.round(tarifaHora * duracionReal)}` : "Monto"}
+                    placeholder={tarifaHora ? `${Math.round(tipoTarifa === "por_clase" ? tarifaHora : tarifaHora * duracionReal)}` : "Monto"}
                     className="w-full rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                   />
                 </div>

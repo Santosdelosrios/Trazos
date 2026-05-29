@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { planificarClase } from "../actions";
 import { CalendarDays, X, ChevronLeft, ChevronRight, RefreshCw, Info, Target, Bell, Plus, Trash2, History } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { calcularMontoClase, type TipoTarifa } from "@/lib/finanzas/calcularMontoClase";
 import type { Feriado } from "@/lib/utils/feriados";
 import type { Materia } from "@/lib/types/database";
 
@@ -17,6 +18,7 @@ export default function PlanificarModal({
   onClose,
   alumnos,
   tarifaActual,
+  tipoTarifa = "por_hora",
   prefillDate,
   prefillAlumnoId,
   feriados,
@@ -25,6 +27,9 @@ export default function PlanificarModal({
   onClose: () => void;
   alumnos: { id: string; nombre: string; apellido: string }[];
   tarifaActual: number | null;
+  /** Tipo de tarifa global de la maestra. Determina si el monto se
+   *  calcula como tarifa × duración (por_hora) o fijo (por_clase). */
+  tipoTarifa?: TipoTarifa;
   prefillDate?: string;
   /** Si viene, el modal salta el selector de alumno y arranca en step 2. */
   prefillAlumnoId?: string;
@@ -39,8 +44,9 @@ export default function PlanificarModal({
     tema_previsto: "",
     materia: "general" as Materia,
     duracion_estimada: 1,
-    // tarifa_esperada = tarifa × duración (es el monto total, no por hora).
-    tarifa_esperada: (tarifaActual || 0) * 1,
+    // tarifa_esperada se deriva con calcularMontoClase: si tipo='por_hora'
+    // es tarifa × duración; si 'por_clase' es el valor fijo.
+    tarifa_esperada: calcularMontoClase(tarifaActual || 0, tipoTarifa, 1),
     repetirSemanal: false,
     semanas: 4,
     diasSemana: [] as number[],  // 0=domingo, 1=lunes, ..., 6=sábado
@@ -121,7 +127,7 @@ export default function PlanificarModal({
       tema_previsto: "",
       materia: "otro" as Materia,
       duracion_estimada: 1,
-      tarifa_esperada: (tarifaActual || 0) * 1,
+      tarifa_esperada: calcularMontoClase(tarifaActual || 0, tipoTarifa, 1),
       repetirSemanal: false,
       semanas: 4,
       diasSemana: [],
@@ -381,7 +387,7 @@ export default function PlanificarModal({
                     value={formData.duracion_estimada}
                     onChange={(e) => {
                       const dur = Number(e.target.value);
-                      setFormData({ ...formData, duracion_estimada: dur, tarifa_esperada: (tarifaActual || 0) * dur });
+                      setFormData({ ...formData, duracion_estimada: dur, tarifa_esperada: calcularMontoClase(tarifaActual || 0, tipoTarifa, dur) });
                     }}
                     className="w-full rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-400"
                   />

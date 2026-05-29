@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 interface Props {
   atLimit: boolean;
   tarifaActual: number | null;
+  tipoTarifa?: "por_hora" | "por_clase";
 }
 
 /**
@@ -24,7 +25,7 @@ interface Props {
  * Reemplaza el form inline server-only de /alumnos/page.tsx para
  * habilitar la UX de seguimiento post-crear.
  */
-export default function NuevoAlumnoForm({ atLimit, tarifaActual }: Props) {
+export default function NuevoAlumnoForm({ atLimit, tarifaActual, tipoTarifa = "por_hora" }: Props) {
   const [isPending, startTransition] = useTransition();
   const [alumnoCreado, setAlumnoCreado] = useState<{ id: string; nombre: string; apellido: string } | null>(null);
   const [agendarOpen, setAgendarOpen] = useState(false);
@@ -190,6 +191,7 @@ export default function NuevoAlumnoForm({ atLimit, tarifaActual }: Props) {
           }}
           alumnos={[alumnoCreado]}
           tarifaActual={tarifaActual}
+          tipoTarifa={tipoTarifa}
           prefillAlumnoId={alumnoCreado.id}
           feriados={feriados}
         />
