@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, History } from "lucide-react";
+import { History } from "lucide-react";
 import HistoricoCliente from "./HistoricoCliente";
+import BackLink from "@/components/ui/BackLink";
 import type { HistoricoMes } from "@/lib/types/database";
 
 export const metadata = {
@@ -29,12 +29,7 @@ export default async function HistoricoPage() {
   return (
     <div className="animate-fade-in-up space-y-6 pb-12">
       <div>
-        <Link
-          href="/finanzas"
-          className="mb-3 flex w-fit items-center gap-1 text-xs font-bold text-primary-600 hover:underline"
-        >
-          <ArrowLeft size={14} /> Volver a Finanzas
-        </Link>
+        <BackLink href="/finanzas" label="Volver a Finanzas" />
         <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
           Histórico <History size={24} className="text-primary-600" />
         </h1>
