@@ -99,6 +99,19 @@ export default function PlanificarModal({
     })().catch(() => setSugerenciaPlan(null));
   }, [open, formData.alumno_id]);
 
+  // Reset interno cuando cambian las props de prefill (modal reabierto
+  // con distinto contexto, por ej. distinto alumno).
+  useEffect(() => {
+    if (open) {
+      setStep(prefillAlumnoId ? 2 : 1);
+      setFormData((prev) => ({
+        ...prev,
+        alumno_id: prefillAlumnoId || prev.alumno_id,
+        fecha: prefillDate || prev.fecha,
+      }));
+    }
+  }, [open, prefillAlumnoId, prefillDate]);
+
   const resetForm = () => {
     setStep(prefillAlumnoId ? 2 : 1);
     setFormData({
