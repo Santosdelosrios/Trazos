@@ -4,6 +4,7 @@ import TablaCobranzas from "@/components/finanzas/TablaCobranzas";
 import CobrosSinImputar from "@/components/finanzas/CobrosSinImputar";
 import type { CobroLibre } from "@/components/finanzas/CobrosSinImputar";
 import FormNuevoPago from "./FormNuevoPago";
+import BackLink from "@/components/ui/BackLink";
 import { CreditCard } from "lucide-react";
 
 export const metadata = {
@@ -105,6 +106,7 @@ export default async function CobranzasPage() {
   return (
     <div className="animate-fade-in-up space-y-6 pb-12">
       <div>
+        <BackLink href="/finanzas" label="Volver a Finanzas" />
         <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
           Cobranzas <CreditCard size={24} className="text-primary-600" />
         </h1>

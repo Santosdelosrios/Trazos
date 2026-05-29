@@ -8,6 +8,7 @@ import {
 } from "@/lib/types/database";
 import FormNuevoGasto from "./FormNuevoGasto";
 import GestionCategorias from "./GestionCategorias";
+import BackLink from "@/components/ui/BackLink";
 import { Package, RefreshCw } from "lucide-react";
 import { CategoriaGastoIcon } from "@/components/ui/CategoriaGastoIcon";
 import BotonEliminarGasto from "@/components/finanzas/BotonEliminarGasto";
@@ -53,6 +54,7 @@ export default async function GastosPage() {
 
   return (
     <div className="animate-fade-in-up space-y-6 pb-12">
+      <BackLink href="/finanzas" label="Volver a Finanzas" />
       <div className="flex items-start justify-between">
         <div>
           <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">

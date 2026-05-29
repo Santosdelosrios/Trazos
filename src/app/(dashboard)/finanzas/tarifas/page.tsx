@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CalculadoraTarifa from "@/components/finanzas/CalculadoraTarifa";
 import SugerenciaTarifaCard from "@/components/finanzas/SugerenciaTarifaCard";
+import BackLink from "@/components/ui/BackLink";
 import { Calculator } from "lucide-react";
 import { getPlan } from "@/lib/plan";
 import { mesesEntreFechas } from "@/lib/finanzas/inflacion";
@@ -53,6 +54,7 @@ export default async function TarifasPage() {
   return (
     <div className="animate-fade-in-up space-y-6 pb-12">
       <div>
+        <BackLink href="/finanzas" label="Volver a Finanzas" />
         <h1 className="flex items-center gap-2 trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
           Tarifas <Calculator size={24} className="text-primary-600" />
         </h1>

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import PerfilStats from "./PerfilStats";
 import CobrosAutomaticosToggle from "./CobrosAutomaticosToggle";
 import MensajeriaEditor from "./MensajeriaEditor";
+import BackLink from "@/components/ui/BackLink";
 import {
   User,
   Mail,
@@ -78,6 +79,7 @@ export default function PerfilClient({
     <div className="mx-auto max-w-2xl space-y-8 animate-fade-in-up pb-12">
       {/* Header */}
       <div>
+        <BackLink href="/dashboard" label="Volver al Inicio" />
         <h1 className="trazos-heading text-2xl font-extrabold tracking-tight text-surface-900">
           Mi Perfil
         </h1>
