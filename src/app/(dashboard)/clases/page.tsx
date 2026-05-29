@@ -17,7 +17,11 @@ export default async function ClasesPage() {
     redirect("/login");
   }
 
-  // Fetch all assessments for this teacher's students
+  // Fetch all assessments for this teacher's students.
+  // No ponemos .order() por fecha de clase acá porque PostgREST no
+  // permite ordenar las filas top-level por una columna de tabla
+  // embebida (referencedTable solo ordena filas embebidas dentro de
+  // cada fila top-level, no las top-level). Ordenamos en cliente.
   const { data: history, error } = await supabase
     .from("clase_alumnos")
     .select(`
@@ -37,18 +41,27 @@ export default async function ClasesPage() {
         apellido
       )
     `)
-    .eq("clases.maestra_id", user.id)
-    // Ordenar por la fecha REAL de la clase, no por respondido_at:
-    // las clases "Express" no tienen ejercicio respondido (respondido_at
-    // queda NULL) y Postgres ordena NULLs primero en DESC, lo que las
-    // empujaba todas al tope sin importar la fecha real.
-    .order("fecha", { ascending: false, referencedTable: "clases" });
+    .eq("clases.maestra_id", user.id);
 
   if (error) {
     console.error("Error fetching history:", error);
   }
 
+  // Sort en server por fecha de clase desc, con desempate por
+  // respondido_at desc (para que dos clases del mismo día queden
+  // ordenadas por la última respondida primero).
+  const getFechaClase = (row: any): string => {
+    const c = row?.clases;
+    if (!c) return "";
+    return (Array.isArray(c) ? c[0]?.fecha : c.fecha) ?? "";
+  };
+  const sorted = ((history as any[]) || []).slice().sort((a, b) => {
+    const cmp = getFechaClase(b).localeCompare(getFechaClase(a));
+    if (cmp !== 0) return cmp;
+    return (b.respondido_at ?? "").localeCompare(a.respondido_at ?? "");
+  });
+
   return (
-    <HistorialClient data={(history as any[]) || []} />
+    <HistorialClient data={sorted} />
   );
 }
