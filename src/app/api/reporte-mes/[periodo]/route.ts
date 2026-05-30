@@ -232,24 +232,25 @@ function drawGrid3(
 }
 
 function drawComparativa(ctx: Ctx, d: DatosReporteMes) {
+  // Nota: la fuente estándar de pdf-lib usa codificación WinAnsi y no
+  // puede dibujar flechas Unicode (↑ ↓ →) — usar texto plano.
+  const tendencia = (v: number) => (v > 0 ? "subió" : v < 0 ? "bajó" : "sin cambios");
   const lines: string[] = [];
   if (d.comparativo.var_ingresos_pct != null) {
     const v = d.comparativo.var_ingresos_pct;
-    const flecha = v > 0 ? "↑" : v < 0 ? "↓" : "→";
     lines.push(
-      `Ingresos: ${formatARS(d.resumen.ingresos)} vs ${formatARS(d.comparativo.ingresos_anterior)} (${flecha} ${v > 0 ? "+" : ""}${v}%)`
+      `Ingresos: ${formatARS(d.resumen.ingresos)} vs ${formatARS(d.comparativo.ingresos_anterior)} (${tendencia(v)} ${Math.abs(v)}%)`
     );
   } else {
-    lines.push(`Ingresos: ${formatARS(d.resumen.ingresos)} · sin dato comparable.`);
+    lines.push(`Ingresos: ${formatARS(d.resumen.ingresos)} - sin dato comparable.`);
   }
   if (d.comparativo.var_neto_pct != null) {
     const v = d.comparativo.var_neto_pct;
-    const flecha = v > 0 ? "↑" : v < 0 ? "↓" : "→";
     lines.push(
-      `Neto: ${formatARS(d.resumen.neto)} vs ${formatARS(d.comparativo.neto_anterior)} (${flecha} ${v > 0 ? "+" : ""}${v}%)`
+      `Neto: ${formatARS(d.resumen.neto)} vs ${formatARS(d.comparativo.neto_anterior)} (${tendencia(v)} ${Math.abs(v)}%)`
     );
   } else {
-    lines.push(`Neto: ${formatARS(d.resumen.neto)} · sin dato comparable.`);
+    lines.push(`Neto: ${formatARS(d.resumen.neto)} - sin dato comparable.`);
   }
   for (const l of lines) drawText(ctx, l, { size: 11 });
 }
