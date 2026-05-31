@@ -128,8 +128,15 @@ export async function getDatosReporteMes(
   // Propagamos el error real del RPC en vez de tragarlo: así el route
   // puede loguearlo y devolver un mensaje útil en vez de un 500 mudo.
   if (rpcError) {
+    console.error("[reporte_mes] RPC error:", rpcError);
     throw new Error(`RPC reporte_mes falló: ${rpcError.message}`);
   }
-  if (!rpc) return null;
+  if (!rpc) {
+    console.error(
+      "[reporte_mes] el RPC devolvió null sin error",
+      { maestraId, anio, mes }
+    );
+    return null;
+  }
   return normalizarReporte(rpc, maestra?.nombre ?? "Profe");
 }
