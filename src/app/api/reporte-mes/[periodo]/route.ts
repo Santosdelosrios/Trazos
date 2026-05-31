@@ -57,21 +57,29 @@ export async function GET(
     return new Response("No autenticado", { status: 401 });
   }
 
-  const datos = await getDatosReporteMes(supabase, user.id, parsed.anio, parsed.mes);
-  if (!datos) {
-    return new Response("No se pudo generar el reporte.", { status: 500 });
+  try {
+    const datos = await getDatosReporteMes(supabase, user.id, parsed.anio, parsed.mes);
+    if (!datos) {
+      return new Response("No se pudo generar el reporte.", { status: 500 });
+    }
+
+    const pdfBytes = await construirPdf(datos);
+
+    return new Response(pdfBytes as BodyInit, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="reporte-${periodo}.pdf"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (err) {
+    // Logueamos el error completo en el server y devolvemos el mensaje
+    // al cliente para que el toast muestre la causa real (no un 500 mudo).
+    console.error("[reporte-mes] error generando el reporte:", err);
+    const msg = err instanceof Error ? err.message : "Error desconocido";
+    return new Response(`Error al generar el reporte: ${msg}`, { status: 500 });
   }
-
-  const pdfBytes = await construirPdf(datos);
-
-  return new Response(pdfBytes as BodyInit, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="reporte-${periodo}.pdf"`,
-      "Cache-Control": "private, no-store",
-    },
-  });
 }
 
 // ============================================================

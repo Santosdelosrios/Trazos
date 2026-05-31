@@ -121,10 +121,15 @@ export async function getDatosReporteMes(
   anio: number,
   mes: number
 ): Promise<DatosReporteMes | null> {
-  const [{ data: rpc }, { data: maestra }] = await Promise.all([
+  const [{ data: rpc, error: rpcError }, { data: maestra }] = await Promise.all([
     supabase.rpc("reporte_mes", { p_maestra_id: maestraId, p_anio: anio, p_mes: mes }),
     supabase.from("maestras").select("nombre").eq("id", maestraId).maybeSingle(),
   ]);
+  // Propagamos el error real del RPC en vez de tragarlo: así el route
+  // puede loguearlo y devolver un mensaje útil en vez de un 500 mudo.
+  if (rpcError) {
+    throw new Error(`RPC reporte_mes falló: ${rpcError.message}`);
+  }
   if (!rpc) return null;
   return normalizarReporte(rpc, maestra?.nombre ?? "Profe");
 }
