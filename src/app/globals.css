@@ -379,4 +379,32 @@ body {
   background: var(--color-surface-400);
 }
 
+/* ============================================================
+   Impresión — aislar el informe del alumno
+   Al imprimir/guardar PDF sólo debe salir el informe, no el resto
+   del dashboard (barra lateral, header, tablas de la página).
+   ============================================================ */
+
+@media print {
+  /* Ocultar todo… */
+  body * {
+    visibility: hidden;
+  }
+  /* …salvo el informe marcado. */
+  .print-report,
+  .print-report * {
+    visibility: visible;
+  }
+  .print-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    /* Conservar gradientes y colores de fondo en el PDF. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 

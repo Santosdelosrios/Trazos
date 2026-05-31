@@ -109,8 +109,7 @@ export default function ReporteButton({ alumnoId, isPremium }: { alumnoId: strin
       </div>
 
       {/* Printable Report */}
-      {/* Printable Report */}
-      <div className="bg-white rounded-3xl border border-surface-200 shadow-xl overflow-hidden print:shadow-none print:border-none print:rounded-none max-w-4xl mx-auto">
+      <div className="print-report bg-white rounded-3xl border border-surface-200 shadow-xl overflow-hidden print:shadow-none print:border-none print:rounded-none max-w-4xl mx-auto">
         {/* Header Decor */}
         <div className="h-4 trazos-gradient"></div>
         
